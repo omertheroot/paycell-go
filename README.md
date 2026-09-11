@@ -1,0 +1,324 @@
+# paycell-go
+
+**Türkçe** · [English](README_EN.md)
+
+Turkcell'in ödeme platformu [Paycell](https://paycell.com.tr) için Go
+istemcisi. Standart kütüphane dışında bağımlılığı yok.
+
+Bütün servisler yazıldı ve tamamı Paycell sandbox'ına karşı test edildi:
+1 TL'lik bir ödeme, sorgusu ve iptali, 3D oturumu, OTP, BIN sorgusu ve
+mutabakat canlı test ortamında baştan sona çalışıyor.
+
+| Servis ailesi | Ne yapar |
+| --- | --- |
+| Provizyon servisleri (`tpay`) | kart ödemesi, saklı kart, 3D oturumu, mobil ödeme (DCB), OTP, pazaryeri, mutabakat |
+| Payment management | `getCardTokenSecure` ve 3D Secure yönlendirme formu |
+| Web SDK | Paycell'in barındırdığı ödeme sayfası: oturum açma, statü sorgulama, iptal, iade |
+
+```
+go get github.com/omertheroot/paycell-go
+```
+
+Ayrıntılı servis dokümantasyonu: [DOCS.md](DOCS.md).
+
+## Örnekler
+
+Her biri tek bir akışı gösteriyor ve Paycell'in yayımladığı test bilgileriyle
+kurulum gerektirmeden çalışıyor.
+
+| Örnek | Ne gösteriyor |
+| --- | --- |
+| [`basic-payment`](examples/basic-payment) | en kısa yol: token, ödeme, sorgu, iptal |
+| [`3d-secure`](examples/3d-secure) | tarayıcıdaki yönlendirme akışı, localhost'ta |
+| [`card-token-browser`](examples/card-token-browser) | kart numarası sunucunuza hiç uğramadan token alma |
+| [`stored-cards`](examples/stored-cards) | cüzdana kart kaydetme, OTP'li listeleme, id ile ödeme |
+| [`refund`](examples/refund) | iptal mi iade mi, kısmi iade, gerçekten işleyeni sayma |
+| [`mobile-payment`](examples/mobile-payment) | mobil ödeme (DCB), OTP ve `provisionAll` |
+| [`web-sdk`](examples/web-sdk) | Paycell'in barındırdığı ödeme sayfası ve statü sorgusu |
+
+```
+go run ./examples/basic-payment
+```
+
+```
+1. pay 1 TL
+   order 000000000000000390387970, approval 929205, reference 66627136356766211670
+2. inquire
+   SALE      100 kuruş  applied=true  Success
+3. reverse
+   approval 929205, reconciliation 20260911
+```
+
+`3d-secure` ve `card-token-browser` birer web sunucusu açar, tarayıcıdan
+girilir. `web-sdk` yayımlanan bilgilerde olmayan bir `TerminalCode` ister.
+Sandbox 3D şifresi `123456`.
+
+## Kurulum
+
+Bilgileri Paycell entegrasyon sürecinde veriyor. Provizyon, iptal ve statü
+servislerini çağıracak her sunucunun IP'sinin Paycell tarafında
+tanımlanması gerekiyor.
+
+```go
+c, err := paycell.New(paycell.Config{
+    ApplicationName:     "PAYCELLTEST",
+    ApplicationPassword: "...",
+    SecureCode:          "...",
+    MerchantCode:        "9998",
+    TerminalCode:        "12345",       // yalnızca Web SDK için
+    DefaultMSISDN:       "905381234567",
+    ReferencePrefix:     "123",         // Paycell'in size verdiği ilk haneler
+    Environment:         paycell.Test,  // ya da paycell.Production
+})
+```
+
+Bütün adresler değiştirilebilir (`ProvisionURL`, `PaymentURL`, `CancelURL`,
+`SDKInitURL`, `SDKHomeURL`). Bazı üye işyerlerine farklı sunucular tanımlanıyor.
+
+## Ödeme almak
+
+```go
+res, err := c.Pay(ctx, paycell.PayParams{
+    Card:            paycell.Card{Number: "5200190006338608", ExpireMonth: "01", ExpireYear: "30", CVC: "410"},
+    Amount:          1525, // 15,25 TL, tutarlar her zaman kuruş cinsinden
+    ReferenceNumber: c.NewReferenceNumber(),
+})
+```
+
+`Pay` kartı token'a çevirip provizyonu tek çağrıda alır. Referans numarasını
+siparişle birlikte saklayın. Sonraki her `Inquire`, `Reverse` ve `Refund`
+çağrısı bu numarayı ister.
+
+Ön otorizasyon aynı çağrının farklı ödeme tipiyle yapılan hâli: önce
+`c.PreAuth`, sonra ön otorizasyonun referansını `OriginalReferenceNumber`
+alanına koyarak `c.PostAuth`.
+
+## 3D Secure
+
+Bankaya POST'u müşterinin tarayıcısı atmak zorunda, bu yüzden akış
+yönlendirmenin iki yanına bölünüyor.
+
+```go
+// yönlendirmeden önce
+start, err := c.Start3D(ctx, params, "https://magaza.example/paycell/callback")
+save(start)                        // start.ReferenceNumber ile saklayın
+w.Write([]byte(start.Form.HTML())) // kendi kendini gönderen form
+
+// müşteri döndükten sonra
+res, err := c.Complete3D(ctx, load(r), params)
+```
+
+`Complete3D` önce oturum sonucunu sorgular, ödemeyi yalnızca müşteri
+doğrulamayı geçtiyse alır. Geçemediyse `*ErrNotVerified` döner ve provizyon
+istenmez. Callback'in kendisi doğrulanmış bir kaynak değil, hiçbir şeyin
+kanıtı sayılmamalı.
+
+## Kart saklama
+
+Kartın ne zaman saklanmasını istediğinize göre iki yol var:
+
+```go
+// ayrı bir adım olarak, yeni alınmış bir token ile
+terms, _ := c.GetTermsOfServiceContent(ctx, nil)
+token, _ := c.GetCardTokenSecure(ctx, card)
+c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+    CardToken: token.CardToken,
+    Alias:     "İş kartı",
+    IsDefault: true,
+    EulaID:    terms.ID(),
+})
+
+// ya da 3D ödemenin içinde, doğrulama geçildiği anda saklanır
+c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: ..., SaveCard: true})
+```
+
+Kart token'ı tek kullanımlık. Kartı az önce çektiyseniz yeniden token alın.
+
+Saklı kartları listelemek OTP'ye bağlı. İlk çağrı `3110` ile geri çevrilir:
+
+```go
+methods, err := c.GetPaymentMethods(ctx, nil)
+if paycell.IsOTPRequired(err) {
+    otp, _ := c.SendOTP(ctx, &paycell.SendOTPRequest{
+        ReferenceNumber: ref,
+        ExtraParameters: paycell.CardListOTPParams(), // VALIDATION_TYPE=PM_LIST
+    })
+    c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
+        OTP: musteriningirdigiKod, Token: otp.Token, ReferenceNumber: ref,
+        ExtraParameters: paycell.CardListOTPParams(),
+    })
+    methods, err = c.GetPaymentMethods(ctx, &paycell.PaymentMethodsRequest{OTPToken: otp.Token})
+}
+
+for _, card := range methods.Cards() {   // cardList ya da paymentMethods, hangisi geldiyse
+    c.Pay(ctx, paycell.PayParams{CardID: card.CardID, Amount: 1525})
+}
+```
+
+`GetPaymentMethods` Paycell'in kendi eklentilerinin kullandığı çağrı, mobil
+ödeme limitini de döner. `GetCards` yalnızca kartları verir. Saklı kartları
+`UpdateCard` ve `DeleteCard` ile yönetirsiniz.
+
+## Hatalar
+
+Her çağrı hem yanıtı hem hatayı döner. `*paycell.Error`, Paycell'in sıfırdan
+farklı bir `responseCode` verdiği anlamına gelir. Yanıt yapısı yine dolu
+gelir, yani kodu görüp ona göre dallanabilirsiniz.
+
+```go
+var pErr *paycell.Error
+if errors.As(err, &pErr) {
+    log.Print(pErr.Code, pErr.Description)
+}
+
+// adı konulmaya değer iki kod
+paycell.IsAlreadySettled(err) // 2029: iptal için geç kalındı, tamamını iade edin
+paycell.IsOTPRequired(err)    // 3110: önce OTP doğrulaması gerekiyor
+```
+
+Bu paketin modellemediği alanlar `res.Raw` içinde durur.
+`c.Call(ctx, "birServis/", in, &out)` ile herhangi bir provizyon servisine
+istediğiniz gövdeyi gönderebilirsiniz.
+
+## İmzalar
+
+İki ayrı algoritma var ve birbirinin yerine geçmiyorlar.
+
+Provizyon ve kart token'ı, her iki aşamada da büyük harfe çevrilir:
+
+```
+securityData = base64(sha256(UPPER(applicationPwd + applicationName)))
+hashData     = base64(sha256(UPPER(applicationName + transactionId +
+               transactionDateTime + [responseCode] + [cardToken] +
+               secureCode + securityData)))
+```
+
+Web SDK oturum açma, büyük harfe çevrilmez, terminal koduna dayanır:
+
+```
+securityData = base64(sha256(secureCode + terminalCode))
+hashData     = base64(sha256(paymentReferenceNumber + terminalCode + amount +
+               currency + paymentSecurity + hostAccount +
+               installmentPlan… + securityData))
+```
+
+İkisi de paket içinde hallediliyor ve ikisi de testlerde sabit değerlere
+bağlandı. `RequestHash` ile `VerifyCardTokenResponse` dışarı açık, çünkü
+Paycell'in tercih ettiği akışta kart numarası sizin sunucunuza hiç uğramaz:
+
+```go
+req := c.BuildCardTokenRequest(card) // imzalı gövde, istemciye verilebilir
+// tarayıcı bunu c.CardTokenURL() adresine POST eder ve yanıtı size gönderir
+err := c.VerifyCardTokenResponse(req.Header.TransactionID, res)
+```
+
+`GetCardTokenSecure` bu doğrulamayı kendiliğinden yapar. Yapmazsanız istemcinin
+uydurduğu bir kart token'ını hiçbir şey engellemez.
+
+## Kurallar
+
+- **Tutarlar kuruş cinsinden.** 15,25 TL için `1525`. `Amount` alanı Paycell'in
+  beklediği gibi string olarak gider, gelirken hem string hem sayı kabul eder,
+  çünkü servise göre ikisi de geliyor. Ondalıklı bir değer hata verir, çünkü
+  yuvarlamak yanlış tutarı kaydeder.
+- **Başarı `responseCode == "0"` demek.** 3D oturum sonucunda `Verified()`,
+  Web SDK statüsünde `Paid()` bakılır.
+- **Aynı gün iptal, sonrası iade.** `2029` dönen bir iptalin tamamı iade
+  edilmeli.
+- **Referans numarası 20 haneli ve sayısal**, ilk haneleri uygulamanıza
+  Paycell tarafından verilir. `c.NewReferenceNumber()` üretir; sipariş
+  numaranız sığıyorsa kendi numaranızı verin.
+- **Para birimi provizyon servislerinde `"TRY"`, Web SDK'da `"99"`.** İkisi de
+  varsayılan olarak dolduruluyor.
+- Timeout aldığınızda tekrar denemeden önce `Inquire` ya da
+  `QueryPaymentStatus` çağırın. Sizin tarafınızdaki timeout Paycell tarafında
+  ne olduğunu söylemez.
+
+## Servisler
+
+Provizyon servisleri, `Config.ProvisionURL` üzerinde:
+
+`Provision` · `PreAuth` · `PostAuth` · `ProvisionAll` · `ProvisionForMarketPlace` ·
+`Inquire` · `InquireAll` · `Reverse` · `Refund` · `RefundAll` ·
+`GetThreeDSession` · `GetThreeDSessionResult` ·
+`GetCards` · `RegisterCard` · `UpdateCard` · `DeleteCard` ·
+`GetTermsOfServiceContent` · `GetCardBinInformation` · `GetPaymentMethods` ·
+`OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
+`GetProvisionHistory` · `SummaryReconciliation`
+
+Payment management, `Config.PaymentURL` üzerinde:
+
+`GetCardTokenSecure` · `BuildCardTokenRequest` · `ThreeDSecureForm`
+
+Web SDK, `Config.SDKInitURL` ve `Config.CancelURL` üzerinde:
+
+`InitSession` · `QueryPaymentStatus` · `ReversePayment` · `RefundPayment` ·
+`SDKSummaryReconciliation`
+
+Kolaylık çağrıları: `Pay` · `Start3D` · `Complete3D` · `Call`
+
+Her birinin çalışan örneği `example_test.go` içinde, uçtan uca akışlar
+[`examples/`](examples) altında. Alan alan referans için
+[DOCS.md](DOCS.md).
+
+## Test
+
+Birim testleri `httptest` kullanır, ne bilgi ne ağ ister:
+
+```
+go test ./...
+```
+
+Entegrasyon testleri gerçek sandbox'a gider:
+
+```
+go test -tags integration -v
+```
+
+Varsayılan olarak Paycell'in yayımladığı test bilgilerini (`PAYCELLTEST`,
+üye işyeri `9998`, eulaId `17`) kullanır; `PAYCELL_APP_NAME`,
+`PAYCELL_APP_PASSWORD`, `PAYCELL_SECURE_CODE`, `PAYCELL_MERCHANT_CODE`,
+`PAYCELL_EULA_ID`, `PAYCELL_PREFIX` ve `PAYCELL_MSISDN` ile değiştirilir.
+Çözümleme hatası testi düşürür, çünkü bir yapının yanlış olduğu anlamına
+gelir; Paycell'in döndüğü hata kodu yalnızca loglanır, çünkü sandbox'ın
+beklenmedik bir durumda olduğunu gösterir. Ödemeler 1 TL ve hepsi geri
+alınıyor.
+
+Test kartı: Denizbank `5200190006338608`, `01/30`, CVC `410`, 3D şifresi
+`123456`.
+
+### Sandbox'ın değiştirdikleri
+
+Hiçbir açık dokümanda geçmeyen üç istek kuralı, canlı isteklerde alan alan
+eleyerek bulundu:
+
+- `getThreeDSession` gönderilen `referenceNumber` alanını `2032` ile,
+  `getThreeDSessionResult` ise `2041` ile reddediyor. Bu alan arkadan gelen
+  provizyona ait ve paket onu orada tutuyor.
+- `openMobilePayment` `referenceNumber` istiyor (`2007`) ve saklı kart listesi
+  gibi OTP'ye bağlı.
+- `eulaId`, `getCards` yanıtında tırnaklı, `getTermsOfServiceContent`
+  yanıtında tırnaksız geliyor; `binValue` her zaman tırnaksız. Bu tür alanlar
+  ikisini de kabul eden `FlexString` tipinde.
+
+PREAUTH ve POSTAUTH ortak sandbox üye işyerinde `4015` ve `1024` dönüyor, oysa
+aynı kart ve alanlarla SALE çalışıyor. Bu, istek yapısından çok üye işyeri
+tanımına benziyor; kendi test üye işyerinizde deneyin. Web SDK, yayımlanan
+bilgilerde olmayan bir `TerminalCode` istediği için `InitSession` yalnızca
+birim testleriyle kontrol edildi.
+
+## Kaynaklar
+
+Paycell SDK entegrasyon dokümanı, Paycell'in resmî WooCommerce, PrestaShop ve
+OpenCart eklentileri, `omnipay-paycell` ve `omnipay-paycell-sdk` PHP
+kütüphaneleri ve mevcut iki Go uygulaması okunarak yazıldı, sonra sandbox'a
+karşı düzeltildi.
+
+Sandbox'ta çalıştırılamayan iki servis `ProvisionForMarketPlace` ve
+`GetProvisionHistory`. Alan adları üçüncü parti kodlardan geliyor, kendi
+entegrasyon dokümanınızla karşılaştırın. Modellenmemiş alanlar her hâlükârda
+`res.Raw` içinde duruyor.
+
+## Lisans
+
+MIT
