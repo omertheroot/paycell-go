@@ -1,0 +1,9 @@
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# local credentials
+.env
+*.local
