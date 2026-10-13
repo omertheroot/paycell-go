@@ -53,6 +53,10 @@ const (
 
 	// CodeAlreadySettled: too late to reverse, refund instead.
 	CodeAlreadySettled = "2029"
+
+	// CodeCardAlreadyRegistered: the card is in the wallet already. The
+	// response still carries its CardID.
+	CodeCardAlreadyRegistered = "3005"
 )
 
 // Keys and values Paycell reads out of extraParameters.

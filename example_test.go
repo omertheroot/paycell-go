@@ -99,8 +99,9 @@ func Example_storedCard() {
 	c := client()
 	ctx := context.Background()
 
-	// 1. Store a card. The token is single use, so get a fresh one even if
-	//    this card was charged a second ago.
+	// 1. Store a card. Paycell only stores one the customer has passed 3D
+	//    with, so open a session for it. With nothing to buy, 1 kuruş does
+	//    and nothing gets charged.
 	terms, err := c.GetTermsOfServiceContent(ctx, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -111,12 +112,25 @@ func Example_storedCard() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := c.RegisterCard(ctx, &paycell.RegisterCardRequest{
-		CardToken: token.CardToken,
-		Alias:     "İş kartı",
-		IsDefault: true,
-		EulaID:    terms.ID(),
-	}); err != nil {
+	session, err := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: token.CardToken, Amount: 1})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// ... the customer goes through c.ThreeDSecureForm and comes back ...
+
+	result, err := c.GetThreeDSessionResult(ctx, &paycell.ThreeDSessionResultRequest{ThreeDSessionID: session.ThreeDSessionID})
+	if err != nil || !result.Verified() {
+		log.Fatal("3D not passed, nothing to store")
+	}
+	_, err = c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+		CardToken:       token.CardToken,
+		ThreeDSessionID: session.ThreeDSessionID,
+		Alias:           "İş kartı",
+		IsDefault:       true,
+		EulaID:          terms.ID(),
+	})
+	if err != nil && !paycell.HasCode(err, paycell.CodeCardAlreadyRegistered) {
 		log.Fatal(err)
 	}
 
@@ -154,32 +168,35 @@ func Example_storedCard() {
 	}
 }
 
-// Storing the card during a 3D payment instead of as its own step.
-func Example_saveCardWhilePaying() {
+// Storing the card the customer has just paid with. The token and 3D session
+// from the payment are enough, no second verification.
+func Example_saveCardAfterPaying() {
 	c := client()
 	ctx := context.Background()
 
-	token, err := c.GetCardTokenSecure(ctx, paycell.Card{
-		Number: "5200190006338608", ExpireMonth: "01", ExpireYear: "30", CVC: "410",
-	})
+	params := paycell.PayParams{
+		Card:   paycell.Card{Number: "5200190006338608", ExpireMonth: "01", ExpireYear: "30", CVC: "410"},
+		Amount: 1525,
+	}
+	start, err := c.Start3D(ctx, params, "https://shop.example/paycell/callback")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	session, err := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{
-		CardToken: token.CardToken,
-		Amount:    1525,
-		SaveCard:  true, // stored once verification passes
+	// ... the customer passes 3D and comes back ...
+
+	if _, err := c.Complete3D(ctx, start, params); err != nil {
+		log.Fatal(err)
+	}
+	card, err := c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+		CardToken:       start.CardToken,
+		ThreeDSessionID: start.ThreeDSessionID,
+		Alias:           "İş kartı",
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	form := c.ThreeDSecureForm(paycell.ThreeDFormParams{
-		ThreeDSessionID: session.ThreeDSessionID,
-		CallbackURL:     "https://shop.example/paycell/callback",
-	})
-	log.Print(form.HTML())
+	log.Printf("stored as %s", card.CardID)
 }
 
 // Mobile payment. Goes on the phone bill, after an OTP.

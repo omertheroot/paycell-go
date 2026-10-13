@@ -223,7 +223,6 @@ type ThreeDSessionRequest struct {
 	InstallmentCount int    `json:"installmentCount,omitempty"`
 	Target           string `json:"target,omitempty"`          // MERCHANT
 	TransactionType  string `json:"transactionType,omitempty"` // AUTH or PREAUTH
-	SaveCard         bool   `json:"saveCard,omitempty"`
 }
 
 // No ReferenceNumber field on purpose: this service rejects one with 2032.
@@ -319,8 +318,12 @@ func (r *GetCardsResponse) Cards() []StoredCard {
 }
 
 // RegisterCardRequest puts a card in the wallet. CardToken comes from
-// getCardTokenSecure, EulaID from GetTermsOfServiceContent. ThreeDSessionID
-// only if the merchant insists on verification before storing.
+// getCardTokenSecure, EulaID from GetTermsOfServiceContent.
+//
+// ThreeDSessionID is a session the customer passed 3D with, and Paycell
+// stores nothing without one. After a 3D payment the same token and session
+// will do. To store a card with nothing to buy, open a 1 kuruş session and
+// skip the provision: nothing is charged.
 type RegisterCardRequest struct {
 	merchantBase
 

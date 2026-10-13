@@ -142,8 +142,8 @@ res, err := c.GetCardTokenSecure(ctx, paycell.Card{
 
 Başlıkta parola yok, provizyon başlığından farklı.
 
-Token tek kullanımlık. Kartı çektikten sonra saklamak isterseniz yeniden
-token alın.
+3D'li bir ödemenin token'ı ve oturumu, provizyondan sonra kartı saklamak için
+de geçerli; yeni token gerekmez.
 
 Paycell'in tercih ettiği akışta bu çağrıyı tarayıcı yapar, böylece kart
 numarası sizin sunucunuza uğramaz:
@@ -297,12 +297,12 @@ ayrı bir provizyonla alınır.
 sess, err := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{
     CardToken: token.CardToken, // ya da CardID
     Amount:    1525,
-    SaveCard:  true, // doğrulama geçilince kartı sakla
 })
 ```
 
 `target` boşsa `MERCHANT`, `transactionType` boşsa `AUTH` (ön otorizasyon için
-`PREAUTH`), `currency` boşsa `TRY`.
+`PREAUTH`), `currency` boşsa `TRY`. `amount` zorunlu, boşsa `2008`; yalnızca
+kart saklamak için açılan oturumda 1 kuruş yeter.
 
 **Bu servise `referenceNumber` göndermeyin.** Gönderilirse `2032` döner.
 Referans numarası arkadan gelen provizyona ait.
@@ -399,18 +399,36 @@ durumunu da döner, `OTPToken` alanı bu ikisi için. `Cards()` kart listesini
 
 ### registerCard
 
+Paycell kartı yalnızca müşterinin 3D'den geçtiği bir oturumla saklar,
+`threeDSessionId` dokümanda zorunlu. Oturumsuz deneme test kanalında `3427`,
+herkese açık sandbox'ta `4003` ile reddedildi.
+
 ```go
 terms, _ := c.GetTermsOfServiceContent(ctx, nil)
 c.RegisterCard(ctx, &paycell.RegisterCardRequest{
     CardToken:       token.CardToken,
+    ThreeDSessionID: sess.ThreeDSessionID, // doğrulaması geçilmiş oturum
     Alias:           "İş kartı",
     IsDefault:       true,
-    EulaID:          terms.ID(),  // boşsa Config.EulaID
-    ThreeDSessionID: "",          // üye işyeri 3D istiyorsa dolu
+    EulaID:          terms.ID(), // boşsa Config.EulaID
 })
 ```
 
+İki yol var, ikisi de test kanalında denendi:
+
+- **Ödemeyle birlikte:** 3D'li ödemeden sonra aynı `cardToken` ve
+  `threeDSessionId` ile `RegisterCard`. `Start3D`'nin döndüğü yapıda ikisi de
+  var.
+- **Ödemesiz:** 1 kuruşluk oturum aç, 3D'den geçir, provizyon istemeden
+  `RegisterCard`. Para çekilmez.
+
 Yanıtta `cardId` döner. Bir sonraki ödemede kart verisi yerine bu id yeter.
+Kart zaten cüzdandaysa `3005` (`CodeCardAlreadyRegistered`) döner, yanıtta
+`cardId` yine dolu gelir. Abone kart sınırındaysa `3002`; test kanalında sınır
+iki karttı.
+
+`ThreeDSessionRequest`'te `saveCard` diye bir alan yok. Dokümanda geçmiyor,
+gönderildiğinde de hiçbir kart saklanmadı.
 
 ### updateCard / deleteCard
 
@@ -576,6 +594,8 @@ Sandbox'ta doğrudan görülenler:
 | `2032` | geçersiz parametre | 3D oturumuna `referenceNumber` göndermeyin |
 | `2041` | provizyon kaydı bulunamadı | 3D sonucuna `referenceNumber` göndermeyin |
 | `3110` | OTP doğrulanamadı | `SendOTP` + `ValidateOTP`, sonra aynı `ReferenceNumber` ile `GetPaymentMethodList` |
+| `3002` | abone kart sınırında | önce bir kart silin; test kanalında sınır iki kart |
+| `3005` | kart zaten kayıtlı | yanıttaki `cardId`'yi kullanın |
 | `3112` | OTP hatalı | `remainingRetryCount` alanına bakın |
 | `4003` | kart sahibi için provizyon kısıtlı | kartın aboneye tanımlı olması gerekiyor |
 | `4015` | kart bilgisi boş | |

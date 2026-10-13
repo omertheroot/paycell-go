@@ -672,21 +672,31 @@ func TestRegisterCard(t *testing.T) {
 	}
 }
 
-// Asking for the card to be stored happens on the 3D session.
-func TestThreeDSessionCanSaveCard(t *testing.T) {
+func TestThreeDSessionDefaults(t *testing.T) {
 	srv, got, _ := jsonServer(t, `{"responseHeader":{"responseCode":"0"},"threeDSessionId":"sess-1"}`)
 	c := testClient(t, srv)
 
 	if _, err := c.GetThreeDSession(context.Background(), &ThreeDSessionRequest{
-		CardToken: "tok-123", Amount: 1525, SaveCard: true,
+		CardToken: "tok-123", Amount: 1525,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if (*got)["saveCard"] != true {
-		t.Errorf("saveCard not sent: %v", *got)
-	}
 	if (*got)["target"] != TargetMerchant || (*got)["transactionType"] != TransactionTypeAuth {
 		t.Errorf("3D session defaults = %v", *got)
+	}
+}
+
+// A card already in the wallet is an error with the id still on it.
+func TestRegisterCardAlreadyRegistered(t *testing.T) {
+	srv, _, _ := jsonServer(t, `{"responseHeader":{"responseCode":"3005","responseDescription":"Credit card is already registered"},"cardId":"c1"}`)
+	c := testClient(t, srv)
+
+	res, err := c.RegisterCard(context.Background(), &RegisterCardRequest{CardToken: "tok-123", ThreeDSessionID: "sess-1"})
+	if !HasCode(err, CodeCardAlreadyRegistered) {
+		t.Fatalf("err = %v, want 3005", err)
+	}
+	if res.CardID != "c1" {
+		t.Errorf("card id = %q, want it kept on 3005", res.CardID)
 	}
 }
 

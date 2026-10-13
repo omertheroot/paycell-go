@@ -122,24 +122,30 @@ geçiyor.
 
 ## Kart saklama
 
+Paycell kartı yalnızca müşterinin 3D'den geçtiği bir oturumla saklıyor.
 Kartın ne zaman saklanmasını istediğinize göre iki yol var:
 
 ```go
-// ayrı bir adım olarak, yeni alınmış bir token ile
 terms, _ := c.GetTermsOfServiceContent(ctx, nil)
-token, _ := c.GetCardTokenSecure(ctx, card)
+
+// 3D'li ödemeden hemen sonra, ödemenin token'ı ve oturumuyla
+c.Complete3D(ctx, start, params)
 c.RegisterCard(ctx, &paycell.RegisterCardRequest{
-    CardToken: token.CardToken,
-    Alias:     "İş kartı",
-    IsDefault: true,
-    EulaID:    terms.ID(),
+    CardToken:       start.CardToken,
+    ThreeDSessionID: start.ThreeDSessionID,
+    Alias:           "İş kartı",
+    EulaID:          terms.ID(),
 })
 
-// ya da 3D ödemenin içinde, doğrulama geçildiği anda saklanır
-c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: ..., SaveCard: true})
+// ya da ödeme olmadan: 1 kuruşluk oturum, 3D, provizyon yok
+sess, _ := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: token.CardToken, Amount: 1})
+// ... müşteri 3D'den geçer, GetThreeDSessionResult ile doğrulayın ...
+c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+    CardToken: token.CardToken, ThreeDSessionID: sess.ThreeDSessionID, EulaID: terms.ID(),
+})
 ```
 
-Kart token'ı tek kullanımlık. Kartı az önce çektiyseniz yeniden token alın.
+Kart zaten cüzdandaysa `3005` döner ve yanıtta `cardId` yine dolu gelir.
 
 Saklı kartları listelemek SMS OTP'ye bağlı. Paycell'in belgelediği yol
 `GetPaymentMethodList`: OTP hangi referans numarasıyla gönderilip

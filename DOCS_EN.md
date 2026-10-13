@@ -141,8 +141,8 @@ res, err := c.GetCardTokenSecure(ctx, paycell.Card{
 
 The header carries no password, unlike the provision header.
 
-A token is single use. Tokenise again if you want to store a card you have
-just charged.
+The token and session of a 3D payment also work for storing the card after
+the provision; no fresh token needed.
 
 In the flow Paycell prefers, the browser makes this call, so the card number
 never reaches your backend:
@@ -299,12 +299,12 @@ provision.
 sess, err := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{
     CardToken: token.CardToken, // or CardID
     Amount:    1525,
-    SaveCard:  true, // store the card once verification passes
 })
 ```
 
 `target` defaults to `MERCHANT`, `transactionType` to `AUTH` (`PREAUTH` for a
-pre-authorisation), `currency` to `TRY`.
+pre-authorisation), `currency` to `TRY`. `amount` is required, `2008` without
+it; a session opened only to store a card needs no more than 1 kuruş.
 
 **Do not send a `referenceNumber` here.** It comes back as `2032`. The
 reference number belongs on the provision that follows.
@@ -402,18 +402,35 @@ back.
 
 ### registerCard
 
+Paycell only stores a card with a session the customer passed 3D with, and
+the docs mark `threeDSessionId` as required. Without one the test channel
+refused with `3427` and the public sandbox with `4003`.
+
 ```go
 terms, _ := c.GetTermsOfServiceContent(ctx, nil)
 c.RegisterCard(ctx, &paycell.RegisterCardRequest{
     CardToken:       token.CardToken,
+    ThreeDSessionID: sess.ThreeDSessionID, // a session that passed 3D
     Alias:           "İş kartı",
     IsDefault:       true,
-    EulaID:          terms.ID(),  // falls back to Config.EulaID
-    ThreeDSessionID: "",          // set when the merchant requires 3D first
+    EulaID:          terms.ID(), // falls back to Config.EulaID
 })
 ```
 
+Two ways in, both tried on the test channel:
+
+- **With a payment:** after a 3D payment, `RegisterCard` with the same
+  `cardToken` and `threeDSessionId`. The struct `Start3D` returns has both.
+- **Without one:** open a 1 kuruş session, take it through 3D, and call
+  `RegisterCard` without provisioning. Nothing is charged.
+
 The response carries `cardId`. Later payments use that instead of card data.
+A card already in the wallet comes back as `3005`
+(`CodeCardAlreadyRegistered`) with `cardId` still filled in. A subscriber at
+the card limit gets `3002`; on the test channel the limit was two cards.
+
+There is no `saveCard` field on `ThreeDSessionRequest`. It is not in the docs,
+and sending it stored nothing.
 
 ### updateCard / deleteCard
 
@@ -579,6 +596,8 @@ Seen directly in the sandbox:
 | `2032` | invalid parameter | do not send `referenceNumber` to the 3D session |
 | `2041` | provision entity not found | do not send `referenceNumber` to the 3D result |
 | `3110` | OTP not validated | `SendOTP` + `ValidateOTP`, then `GetPaymentMethodList` with the same `ReferenceNumber` |
+| `3002` | subscriber at the card limit | delete a card first; two on the test channel |
+| `3005` | card already registered | use the `cardId` in the response |
 | `3112` | wrong OTP | check `remainingRetryCount` |
 | `4003` | provision restricted for card holder | the card must belong to the subscriber |
 | `4015` | card info is empty | |

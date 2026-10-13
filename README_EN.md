@@ -120,24 +120,31 @@ register yours, or the customer stops on a "3D Yönlendirme Hatası" page.
 
 ## Saving cards
 
-Three ways in, depending on when you want the card stored:
+Paycell only stores a card with a session the customer has passed 3D with.
+Two ways in, depending on when you want it stored:
 
 ```go
-// as its own step, from a fresh token
 terms, _ := c.GetTermsOfServiceContent(ctx, nil)
-token, _ := c.GetCardTokenSecure(ctx, card)
+
+// right after a 3D payment, with its token and session
+c.Complete3D(ctx, start, params)
 c.RegisterCard(ctx, &paycell.RegisterCardRequest{
-    CardToken: token.CardToken,
-    Alias:     "İş kartı",
-    IsDefault: true,
-    EulaID:    terms.ID(),
+    CardToken:       start.CardToken,
+    ThreeDSessionID: start.ThreeDSessionID,
+    Alias:           "İş kartı",
+    EulaID:          terms.ID(),
 })
 
-// or during a 3D payment, stored once verification passes
-c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: ..., SaveCard: true})
+// or with no payment: a 1 kuruş session, 3D, no provision
+sess, _ := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: token.CardToken, Amount: 1})
+// ... the customer passes 3D, confirm with GetThreeDSessionResult ...
+c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+    CardToken: token.CardToken, ThreeDSessionID: sess.ThreeDSessionID, EulaID: terms.ID(),
+})
 ```
 
-A card token is single use. Tokenise again if you have just charged the card.
+A card already in the wallet comes back as `3005`, with `cardId` still in the
+response.
 
 Listing stored cards sits behind an SMS OTP. The documented way is
 `GetPaymentMethodList`: the list opens with whatever reference number the OTP

@@ -201,7 +201,11 @@ func (c *Client) GetCards(ctx context.Context, req *GetCardsRequest) (*GetCardsR
 }
 
 // RegisterCard puts a card token in the wallet so later payments can just
-// use CardID. EulaID falls back to Config.EulaID.
+// use CardID. EulaID falls back to Config.EulaID. See RegisterCardRequest for
+// the 3D session it needs.
+//
+// A card that is in the wallet already comes back as
+// CodeCardAlreadyRegistered, with its CardID filled in all the same.
 func (c *Client) RegisterCard(ctx context.Context, req *RegisterCardRequest) (*CardResponse, error) {
 	if req.EulaID == "" {
 		req.EulaID = c.cfg.EulaID
