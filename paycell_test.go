@@ -545,6 +545,37 @@ func TestStoredCardListingIsOTPGated(t *testing.T) {
 	}
 }
 
+// The documented listing: same reference as the OTP, PM_LIST without asking.
+func TestPaymentMethodList(t *testing.T) {
+	srv, got, path := jsonServer(t, `{"responseHeader":{"responseCode":"0"},"eulaId":"19","cardList":[
+		{"cardId":"c1","maskedCardNo":"100000******0016","alias":"Test","isDefault":true,"cardType":"Credit"}],
+		"mobilePayment":null,"wallet":{"detailBalances":null,"totalBalances":null}}`)
+	c := testClient(t, srv)
+
+	res, err := c.GetPaymentMethodList(context.Background(), &PaymentMethodListRequest{ReferenceNumber: "10000000000000000009"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *path != "/provision/services/restful/getCardToken/getPaymentMethodList/" {
+		t.Errorf("posted to %q", *path)
+	}
+	if (*got)["referenceNumber"] != "10000000000000000009" || (*got)["msisdn"] != "905380521479" {
+		t.Errorf("request = %v", *got)
+	}
+	params, _ := (*got)["extraParameters"].([]any)
+	if len(params) != 1 || params[0].(map[string]any)["value"] != ValidationTypePMList {
+		t.Errorf("extraParameters = %v, want PM_LIST", (*got)["extraParameters"])
+	}
+	if cards := res.Cards(); len(cards) != 1 || cards[0].CardID != "c1" || res.EulaID != "19" {
+		t.Errorf("response = %+v", res)
+	}
+
+	srv2, _, _ := jsonServer(t, `{"responseHeader":{"responseCode":"3110","responseDescription":"OTP Dogrulanamadi"}}`)
+	if _, err := testClient(t, srv2).GetPaymentMethodList(context.Background(), nil); !IsOTPRequired(err) {
+		t.Errorf("err = %v, want an OTP-required error", err)
+	}
+}
+
 // The card-list OTP has to be flagged as one.
 func TestCardListOTPParams(t *testing.T) {
 	srv, got, path := jsonServer(t, `{"responseHeader":{"responseCode":"0"},"token":"otp-token-1","remainingRetryCount":3}`)

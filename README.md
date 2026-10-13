@@ -134,29 +134,35 @@ c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: ..., SaveCard: 
 
 Kart token'ı tek kullanımlık. Kartı az önce çektiyseniz yeniden token alın.
 
-Saklı kartları listelemek OTP'ye bağlı. İlk çağrı `3110` ile geri çevrilir:
+Saklı kartları listelemek SMS OTP'ye bağlı. Paycell'in belgelediği yol
+`GetPaymentMethodList`: OTP hangi referans numarasıyla gönderilip
+doğrulandıysa liste o numarayla açılır.
 
 ```go
-methods, err := c.GetPaymentMethods(ctx, nil)
-if paycell.IsOTPRequired(err) {
-    otp, _ := c.SendOTP(ctx, &paycell.SendOTPRequest{
-        ReferenceNumber: ref,
-        ExtraParameters: paycell.CardListOTPParams(), // VALIDATION_TYPE=PM_LIST
-    })
-    c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
-        OTP: musteriningirdigiKod, Token: otp.Token, ReferenceNumber: ref,
-        ExtraParameters: paycell.CardListOTPParams(),
-    })
-    methods, err = c.GetPaymentMethods(ctx, &paycell.PaymentMethodsRequest{OTPToken: otp.Token})
-}
+ref := c.NewReferenceNumber()
+otp, _ := c.SendOTP(ctx, &paycell.SendOTPRequest{
+    ReferenceNumber: ref,
+    ExtraParameters: paycell.CardListOTPParams(), // VALIDATION_TYPE=PM_LIST
+})
+c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
+    OTP: musteriningirdigiKod, Token: otp.Token, ReferenceNumber: ref,
+    ExtraParameters: paycell.CardListOTPParams(),
+})
+methods, err := c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{ReferenceNumber: ref})
 
-for _, card := range methods.Cards() {   // cardList ya da paymentMethods, hangisi geldiyse
+for _, card := range methods.Cards() {
     c.Pay(ctx, paycell.PayParams{CardID: card.CardID, Amount: 1525})
 }
 ```
 
-`GetPaymentMethods` Paycell'in kendi eklentilerinin kullandığı çağrı, mobil
-ödeme limitini de döner. `GetCards` yalnızca kartları verir. Saklı kartları
+Doğrulanmış referans OTP'nin kendisinden çok daha uzun yaşıyor: sandbox beş
+gün önce doğrulanmış bir referansla listeyi hâlâ veriyordu. Referans
+düştüğünde `3110` gelir, o zaman yeni bir OTP isteyin.
+
+`GetPaymentMethods` ve `GetCards` eski listeler, Paycell'in güncel
+dokümanında yoklar. Test kanalında OTP istemeden cevap verdiler, ama kart
+listesi için `GetPaymentMethodList` kullanın: Paycell'in kabul testleri onu
+soruyor. Mobil ödeme limiti `GetPaymentMethods`'ta. Saklı kartları
 `UpdateCard` ve `DeleteCard` ile yönetirsiniz.
 
 ## Hatalar
@@ -243,7 +249,7 @@ Provizyon servisleri, `Config.ProvisionURL` üzerinde:
 `GetThreeDSession` · `GetThreeDSessionResult` ·
 `GetCards` · `RegisterCard` · `UpdateCard` · `DeleteCard` ·
 `GetTermsOfServiceContent` · `GetCardBinInformation` · `GetPaymentMethods` ·
-`OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
+`GetPaymentMethodList` · `OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
 `GetProvisionHistory` · `SummaryReconciliation`
 
 Payment management, `Config.PaymentURL` üzerinde:

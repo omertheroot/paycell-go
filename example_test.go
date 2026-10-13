@@ -120,34 +120,26 @@ func Example_storedCard() {
 		log.Fatal(err)
 	}
 
-	// 2. List them. First call gets refused until the subscriber confirms an
-	//    OTP, so send one and come back with the token.
-	methods, err := c.GetPaymentMethods(ctx, nil)
-	if paycell.IsOTPRequired(err) {
-		ref := c.NewReferenceNumber()
-		otp, err := c.SendOTP(ctx, &paycell.SendOTPRequest{
-			ReferenceNumber: ref,
-			ExtraParameters: paycell.CardListOTPParams(),
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		if _, err := c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
-			OTP:             "123456", // what the subscriber typed
-			Token:           otp.Token,
-			ReferenceNumber: ref,
-			ExtraParameters: paycell.CardListOTPParams(),
-		}); err != nil {
-			log.Fatal(err)
-		}
-		methods, err = c.GetPaymentMethods(ctx, &paycell.PaymentMethodsRequest{
-			ReferenceNumber: ref,
-			OTPToken:        otp.Token,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else if err != nil {
+	// 2. List them. The list opens with the reference an OTP was validated
+	//    with, so send one first.
+	ref := c.NewReferenceNumber()
+	otp, err := c.SendOTP(ctx, &paycell.SendOTPRequest{
+		ReferenceNumber: ref,
+		ExtraParameters: paycell.CardListOTPParams(),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	if _, err := c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
+		OTP:             "111111", // what the subscriber typed
+		Token:           otp.Token,
+		ReferenceNumber: ref,
+		ExtraParameters: paycell.CardListOTPParams(),
+	}); err != nil {
+		log.Fatal(err)
+	}
+	methods, err := c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{ReferenceNumber: ref})
+	if err != nil {
 		log.Fatal(err)
 	}
 

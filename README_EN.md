@@ -131,30 +131,37 @@ c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: ..., SaveCard: 
 
 A card token is single use. Tokenise again if you have just charged the card.
 
-Listing stored cards is OTP gated. The first call is refused with `3110`:
+Listing stored cards sits behind an SMS OTP. The documented way is
+`GetPaymentMethodList`: the list opens with whatever reference number the OTP
+was sent and validated with.
 
 ```go
-methods, err := c.GetPaymentMethods(ctx, nil)
-if paycell.IsOTPRequired(err) {
-    otp, _ := c.SendOTP(ctx, &paycell.SendOTPRequest{
-        ReferenceNumber: ref,
-        ExtraParameters: paycell.CardListOTPParams(), // VALIDATION_TYPE=PM_LIST
-    })
-    c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
-        OTP: typedByCustomer, Token: otp.Token, ReferenceNumber: ref,
-        ExtraParameters: paycell.CardListOTPParams(),
-    })
-    methods, err = c.GetPaymentMethods(ctx, &paycell.PaymentMethodsRequest{OTPToken: otp.Token})
-}
+ref := c.NewReferenceNumber()
+otp, _ := c.SendOTP(ctx, &paycell.SendOTPRequest{
+    ReferenceNumber: ref,
+    ExtraParameters: paycell.CardListOTPParams(), // VALIDATION_TYPE=PM_LIST
+})
+c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
+    OTP: typedByCustomer, Token: otp.Token, ReferenceNumber: ref,
+    ExtraParameters: paycell.CardListOTPParams(),
+})
+methods, err := c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{ReferenceNumber: ref})
 
-for _, card := range methods.Cards() {   // cardList or paymentMethods, whichever came back
+for _, card := range methods.Cards() {
     c.Pay(ctx, paycell.PayParams{CardID: card.CardID, Amount: 1525})
 }
 ```
 
-`GetPaymentMethods` is the call Paycell's own plugins use, and it also reports
-the mobile payment limit. `GetCards` is the card-only equivalent. Manage the
-stored set with `UpdateCard` and `DeleteCard`.
+A validated reference lives far longer than the OTP: the sandbox still listed
+cards for a reference validated five days earlier. Once it lapses you get
+`3110`, and that is the time for a fresh OTP.
+
+`GetPaymentMethods` and `GetCards` are the older listings and are gone from
+Paycell's current docs. On the test channel they answered without any OTP,
+but use `GetPaymentMethodList` for the card list: it is the one Paycell's
+acceptance tests ask about. The mobile payment limit is in
+`GetPaymentMethods`. Manage the stored set with `UpdateCard` and
+`DeleteCard`.
 
 ## Errors
 
@@ -239,7 +246,7 @@ Provision services, on `Config.ProvisionURL`:
 `GetThreeDSession` · `GetThreeDSessionResult` ·
 `GetCards` · `RegisterCard` · `UpdateCard` · `DeleteCard` ·
 `GetTermsOfServiceContent` · `GetCardBinInformation` · `GetPaymentMethods` ·
-`OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
+`GetPaymentMethodList` · `OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
 `GetProvisionHistory` · `SummaryReconciliation`
 
 Payment management, on `Config.PaymentURL`:

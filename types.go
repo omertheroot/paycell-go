@@ -435,6 +435,15 @@ type PaymentMethodsRequest struct {
 	OTPToken        string `json:"otpToken,omitempty"`
 }
 
+// PaymentMethodListRequest asks for the stored cards. ReferenceNumber is the
+// one the card-list OTP went out and got validated with.
+type PaymentMethodListRequest struct {
+	merchantBase
+
+	ReferenceNumber string     `json:"referenceNumber,omitempty"`
+	ExtraParameters []KeyValue `json:"extraParameters,omitempty"`
+}
+
 // MobilePaymentInfo is where a subscriber stands on direct carrier billing.
 type MobilePaymentInfo struct {
 	EulaID         string `json:"eulaId,omitempty"`

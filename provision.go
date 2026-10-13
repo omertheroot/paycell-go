@@ -22,6 +22,7 @@ const (
 	svcTermsOfService    = "getTermsOfServiceContent/"
 	svcCardBin           = "getCardBinInformation/"
 	svcPaymentMethods    = "getPaymentMethods/"
+	svcPaymentMethodList = "getPaymentMethodList/"
 	svcOpenMobilePayment = "openMobilePayment/"
 	svcSendOTP           = "sendOTP/"
 	svcValidateOTP       = "validateOTP/"
@@ -189,6 +190,8 @@ func (c *Client) GetThreeDSessionResult(ctx context.Context, req *ThreeDSessionR
 
 // GetCards lists the subscriber's stored cards. Usually OTP gated, see
 // IsOTPRequired.
+//
+// Deprecated: Paycell's docs list cards with GetPaymentMethodList.
 func (c *Client) GetCards(ctx context.Context, req *GetCardsRequest) (*GetCardsResponse, error) {
 	if req == nil {
 		req = new(GetCardsRequest)
@@ -242,13 +245,34 @@ func (c *Client) GetCardBinInformation(ctx context.Context, req *CardBinRequest)
 // GetPaymentMethods lists what the subscriber can pay with. Stored cards,
 // and mobile payment with its remaining limit when that's open.
 //
-// This is the one Paycell's own plugins use. Usually OTP gated.
+// This is the one Paycell's own plugins use. For the card list itself their
+// docs point at GetPaymentMethodList; this one is still where the mobile
+// payment standing comes from.
 func (c *Client) GetPaymentMethods(ctx context.Context, req *PaymentMethodsRequest) (*PaymentMethodsResponse, error) {
 	if req == nil {
 		req = new(PaymentMethodsRequest)
 	}
 	res := new(PaymentMethodsResponse)
 	return res, c.provisionCall(ctx, svcPaymentMethods, req, res)
+}
+
+// GetPaymentMethodList lists the subscriber's stored cards, the way Paycell's
+// docs do it. It sits behind an SMS OTP: SendOTP and ValidateOTP with
+// CardListOTPParams, then this call with the same ReferenceNumber. Without a
+// validated reference it answers 3110, see IsOTPRequired.
+//
+// ExtraParameters defaults to CardListOTPParams, which the docs ask for here
+// too. A validated reference outlives the OTP by a long way: the sandbox
+// still listed cards for one validated five days earlier.
+func (c *Client) GetPaymentMethodList(ctx context.Context, req *PaymentMethodListRequest) (*PaymentMethodsResponse, error) {
+	if req == nil {
+		req = new(PaymentMethodListRequest)
+	}
+	if req.ExtraParameters == nil {
+		req.ExtraParameters = CardListOTPParams()
+	}
+	res := new(PaymentMethodsResponse)
+	return res, c.provisionCall(ctx, svcPaymentMethodList, req, res)
 }
 
 // OpenMobilePayment switches on direct carrier billing once the subscriber

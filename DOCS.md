@@ -351,20 +351,28 @@ doğrulanmamış bir kaynak, tek kaydınız o.
 
 ### Listeleme
 
-`GetPaymentMethods` Paycell'in kendi eklentilerinin kullandığı çağrı, saklı
-kartlarla birlikte mobil ödeme durumunu da döner. `GetCards` yalnızca kartları
-verir. İkisi de OTP'ye bağlı olabilir:
+Paycell'in belgelediği listeleme `GetPaymentMethodList`. SMS OTP'ye bağlı:
+önce `CardListOTPParams()` ile `SendOTP` ve `ValidateOTP`, sonra liste aynı
+`ReferenceNumber` ile. Doğrulanmamış referans `3110` alır.
 
 ```go
-methods, err := c.GetPaymentMethods(ctx, nil)
+methods, err := c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{
+    ReferenceNumber: ref, // OTP'nin gönderildiği referans
+})
 if paycell.IsOTPRequired(err) { // 3110
-    // SendOTP + ValidateOTP, sonra OTPToken ile tekrar
+    // aynı ref ile SendOTP + ValidateOTP, sonra tekrar
 }
 for _, card := range methods.Cards() { ... }
 ```
 
-`Cards()` kart listesini `cardList`'ten ya da `paymentMethods`'tan, hangisi
-doluysa oradan alır. Paycell kurulumuna göre ikisi de gelebiliyor.
+`ExtraParameters` boşsa `VALIDATION_TYPE=PM_LIST` gider, doküman bunu burada
+da istiyor. Sandbox'ta doğrulanmış bir referans beş gün sonra da listeyi
+açıyordu.
+
+`GetPaymentMethods` ve `GetCards` eski listeler, dokümanda yoklar; test
+kanalında OTP istemeden cevap verdiler. `GetPaymentMethods` mobil ödeme
+durumunu da döner, `OTPToken` alanı bu ikisi için. `Cards()` kart listesini
+`cardList`'ten ya da `paymentMethods`'tan, hangisi doluysa oradan alır.
 
 `StoredCard`: `cardId`, `cardBrand`, `cardType`, `maskedCardNo`, `alias`,
 `activationDate`, `isDefault`, `isExpired`, `showEulaId`, `isThreeDValidated`,
@@ -423,7 +431,9 @@ _, err := c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
 
 Saklı kart listesini açmak için istenen OTP'de
 `ExtraParameters: paycell.CardListOTPParams()` gönderin, yani
-`VALIDATION_TYPE=PM_LIST`. Aynı parametre iki çağrıda da olmalı.
+`VALIDATION_TYPE=PM_LIST`. Aynı parametre ve aynı `ReferenceNumber` iki
+çağrıda da, ardından gelen `GetPaymentMethodList`'te de olmalı. Sandbox'ta OTP
+kodu `111111`.
 
 ## BIN, sözleşme, ödeme yöntemleri
 
@@ -547,7 +557,7 @@ Sandbox'ta doğrudan görülenler:
 | `2029` | iptal için geç kalındı | tamamını iade edin |
 | `2032` | geçersiz parametre | 3D oturumuna `referenceNumber` göndermeyin |
 | `2041` | provizyon kaydı bulunamadı | 3D sonucuna `referenceNumber` göndermeyin |
-| `3110` | OTP doğrulaması gerekiyor | `SendOTP` + `ValidateOTP`, sonra `OTPToken` |
+| `3110` | OTP doğrulanamadı | `SendOTP` + `ValidateOTP`, sonra aynı `ReferenceNumber` ile `GetPaymentMethodList` |
 | `3112` | OTP hatalı | `remainingRetryCount` alanına bakın |
 | `4003` | kart sahibi için provizyon kısıtlı | kartın aboneye tanımlı olması gerekiyor |
 | `4015` | kart bilgisi boş | |

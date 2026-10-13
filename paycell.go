@@ -67,7 +67,9 @@ const (
 // IsOTPRequired reports whether Paycell wants an OTP before it will answer.
 //
 // The card list and OpenMobilePayment both do this. Make the call, and if it
-// comes back true: SendOTP, ValidateOTP, call again with the OTPToken.
+// comes back true: SendOTP, ValidateOTP, then call again. GetPaymentMethodList
+// wants the ReferenceNumber the OTP went out with, the older listings the
+// OTPToken.
 func IsOTPRequired(err error) bool { return HasCode(err, CodeOTPRequired) }
 
 // IsAlreadySettled reports a reversal refused because the payment settled.

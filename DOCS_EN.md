@@ -353,20 +353,29 @@ callback is unauthenticated, so it is your only record.
 
 ### Listing
 
-`GetPaymentMethods` is the call Paycell's own plugins use, and it reports the
-mobile payment standing alongside the cards. `GetCards` returns cards only.
-Either can be OTP gated:
+The listing Paycell documents is `GetPaymentMethodList`. It sits behind an SMS
+OTP: `SendOTP` and `ValidateOTP` with `CardListOTPParams()` first, then the
+list with the same `ReferenceNumber`. An unvalidated reference gets `3110`.
 
 ```go
-methods, err := c.GetPaymentMethods(ctx, nil)
+methods, err := c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{
+    ReferenceNumber: ref, // the reference the OTP went out with
+})
 if paycell.IsOTPRequired(err) { // 3110
-    // SendOTP + ValidateOTP, then call again with OTPToken
+    // SendOTP + ValidateOTP with the same ref, then again
 }
 for _, card := range methods.Cards() { ... }
 ```
 
+`ExtraParameters` defaults to `VALIDATION_TYPE=PM_LIST`, which the docs ask
+for here as well. In the sandbox a validated reference still opened the list
+five days later.
+
+`GetPaymentMethods` and `GetCards` are the older listings and are not in the
+docs; on the test channel they answered without an OTP. `GetPaymentMethods`
+also reports the mobile payment standing, and `OTPToken` is for these two.
 `Cards()` reads the list from `cardList` or `paymentMethods`, whichever came
-back. Paycell deployments differ.
+back.
 
 `StoredCard`: `cardId`, `cardBrand`, `cardType`, `maskedCardNo`, `alias`,
 `activationDate`, `isDefault`, `isExpired`, `showEulaId`, `isThreeDValidated`,
@@ -425,7 +434,9 @@ code comes back as `3112`.
 
 For the OTP that unlocks the stored card list, send
 `ExtraParameters: paycell.CardListOTPParams()`, which is
-`VALIDATION_TYPE=PM_LIST`. Both calls need it.
+`VALIDATION_TYPE=PM_LIST`. Both calls need it and the same `ReferenceNumber`,
+and so does the `GetPaymentMethodList` that follows. The sandbox OTP is
+`111111`.
 
 ## BIN, terms, payment methods
 
@@ -549,7 +560,7 @@ Seen directly in the sandbox:
 | `2029` | too late to reverse | refund in full |
 | `2032` | invalid parameter | do not send `referenceNumber` to the 3D session |
 | `2041` | provision entity not found | do not send `referenceNumber` to the 3D result |
-| `3110` | OTP required | `SendOTP` + `ValidateOTP`, then pass `OTPToken` |
+| `3110` | OTP not validated | `SendOTP` + `ValidateOTP`, then `GetPaymentMethodList` with the same `ReferenceNumber` |
 | `3112` | wrong OTP | check `remainingRetryCount` |
 | `4003` | provision restricted for card holder | the card must belong to the subscriber |
 | `4015` | card info is empty | |
