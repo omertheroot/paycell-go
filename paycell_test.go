@@ -343,6 +343,19 @@ func TestPayGoesThroughProvisionAll(t *testing.T) {
 	}
 }
 
+func TestPayCarriesTheCustomerIP(t *testing.T) {
+	srv, got, _ := jsonServer(t, `{"responseHeader":{"responseCode":"0"}}`)
+	c := testClient(t, srv)
+
+	if _, err := c.Pay(context.Background(), PayParams{CardID: "card-1", Amount: 100, ClientIP: "85.105.1.2:51234"}); err != nil {
+		t.Fatal(err)
+	}
+	h, _ := (*got)["requestHeader"].(map[string]any)
+	if h["clientIPAddress"] != "85.105.1.2:51234" {
+		t.Errorf("client ip = %v", h["clientIPAddress"])
+	}
+}
+
 func TestPayNeedsACard(t *testing.T) {
 	c := testClient(t, httptest.NewServer(http.NotFoundHandler()))
 	if _, err := c.Pay(context.Background(), PayParams{Amount: 100}); !errors.Is(err, ErrNoCard) {

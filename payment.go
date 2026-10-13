@@ -147,6 +147,11 @@ type PayParams struct {
 	AcquirerBankCode string
 	PointAmount      Amount
 	ExtraParameters  []KeyValue
+
+	// ClientIP is the customer's address, IP:port if you have it. Paycell
+	// wants the customer's, not your server's. Defaults to
+	// Config.ClientIPAddress.
+	ClientIP string
 }
 
 // ErrNoCard means the payment named no card at all.
@@ -181,6 +186,7 @@ func (p PayParams) provision() *ProvisionRequest {
 		ExtraParameters:  p.ExtraParameters,
 	}
 	req.MSISDN = p.MSISDN
+	req.RequestHeader.ClientIPAddress = p.ClientIP
 	return req
 }
 
@@ -232,6 +238,7 @@ func (c *Client) Start3D(ctx context.Context, p PayParams, callbackURL string) (
 		sess.TransactionType = TransactionTypePreAuth
 	}
 	sess.MSISDN = p.MSISDN
+	sess.RequestHeader.ClientIPAddress = p.ClientIP
 
 	res, err := c.GetThreeDSession(ctx, sess)
 	if err != nil {
@@ -280,6 +287,7 @@ func (c *Client) Complete3D(ctx context.Context, start *ThreeDStart, p PayParams
 
 	q := &ThreeDSessionResultRequest{ThreeDSessionID: start.ThreeDSessionID}
 	q.MSISDN = p.MSISDN
+	q.RequestHeader.ClientIPAddress = p.ClientIP
 	result, err := c.GetThreeDSessionResult(ctx, q)
 	if err != nil {
 		return nil, err

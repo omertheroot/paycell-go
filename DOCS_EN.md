@@ -32,7 +32,7 @@ are required.
 | `TerminalCode` | Web SDK only |
 | `EulaID` | default terms id for storing a card and opening mobile payment |
 | `Environment` | `paycell.Test` or `paycell.Production` |
-| `ClientIPAddress` | reported as the origin, `127.0.0.1` when empty |
+| `ClientIPAddress` | reported as the origin, `127.0.0.1` when empty. Paycell wants the customer's IP:port; `PayParams.ClientIP` sets it per payment |
 | `DefaultMSISDN` | used by calls that do not carry a subscriber number |
 | `ReferencePrefix` | the digits `NewReferenceNumber` puts in front |
 | `SkipResponseHashCheck` | turns off card token signature checking, leave it off |

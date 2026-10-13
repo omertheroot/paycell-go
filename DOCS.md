@@ -32,7 +32,7 @@ zorunlu.
 | `TerminalCode` | yalnızca Web SDK |
 | `EulaID` | kart saklama ve mobil ödeme açmada varsayılan sözleşme |
 | `Environment` | `paycell.Test` ya da `paycell.Production` |
-| `ClientIPAddress` | isteğe yazılan IP, boşsa `127.0.0.1` |
+| `ClientIPAddress` | isteğe yazılan IP, boşsa `127.0.0.1`. Paycell müşterinin IP:port'unu istiyor, `PayParams.ClientIP` istek başına verir |
 | `DefaultMSISDN` | çağrılarda numara verilmezse kullanılır |
 | `ReferencePrefix` | `NewReferenceNumber`'ın başa koyduğu haneler |
 | `SkipResponseHashCheck` | kart token yanıtının imza kontrolünü kapatır, açık bırakın |
