@@ -168,14 +168,15 @@ func (p ProvisionItem) Applied() bool {
 // ReverseRequest voids a payment, same day only. After that it's Refund's
 // job, and a 2029 is Paycell telling you so.
 //
-// No partial reverse exists. Send an amount and the service ignores it and
-// voids the lot, which is why there's no Amount field here. Use Refund for
-// part of the money.
+// No partial reverse exists, the whole payment is voided. Paycell's docs
+// still list amount as required, so send the payment's amount; the sandbox
+// voids the lot with or without it. Use Refund for part of the money.
 type ReverseRequest struct {
 	merchantBase
 
 	ReferenceNumber         string     `json:"referenceNumber,omitempty"`
 	OriginalReferenceNumber string     `json:"originalReferenceNumber,omitempty"`
+	Amount                  Amount     `json:"amount,omitempty"`
 	PaymentType             string     `json:"paymentType,omitempty"`
 	AcquirerBankCode        string     `json:"acquirerBankCode,omitempty"`
 	ThreeDSessionID         string     `json:"threeDSessionId,omitempty"`

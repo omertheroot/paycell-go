@@ -232,7 +232,9 @@ Yanıttaki `provisionList` o referansa yapılmış her denemeyi verir:
 ### reverse
 
 Aynı gün yapılan ödemeyi iptal eder. `referenceNumber` iptal işleminin kendi
-referansı, `originalReferenceNumber` iptal edilen ödeme.
+referansı, `originalReferenceNumber` iptal edilen ödeme. Doküman `amount`'u
+zorunlu gösteriyor, ödemenin tutarını gönderin; sandbox tutar olsa da olmasa
+da ödemenin tamamını iptal ediyor.
 
 `2029` dönerse ödeme gün sonuna girmiş, tamamını iade edin:
 

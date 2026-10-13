@@ -783,6 +783,18 @@ func TestCardBinInformation(t *testing.T) {
 	}
 }
 
+func TestReverseSendsAmount(t *testing.T) {
+	srv, got, path := jsonServer(t, `{"responseHeader":{"responseCode":"0"},"approvalCode":"a1"}`)
+	c := testClient(t, srv)
+
+	if _, err := c.Reverse(context.Background(), &ReverseRequest{OriginalReferenceNumber: "10000000000000000001", Amount: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if *path != "/provision/services/restful/getCardToken/reverse/" || (*got)["amount"] != "100" {
+		t.Errorf("posted %v to %q", *got, *path)
+	}
+}
+
 func TestIsAlreadySettled(t *testing.T) {
 	srv, _, _ := jsonServer(t, `{"responseHeader":{"responseCode":"2029","responseDescription":"Islem gunsonu olmus"}}`)
 	c := testClient(t, srv)

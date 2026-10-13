@@ -232,7 +232,9 @@ gone through.
 ### reverse
 
 Voids a payment made the same day. `referenceNumber` is the reversal's own
-reference, `originalReferenceNumber` is the payment.
+reference, `originalReferenceNumber` is the payment. The docs list `amount`
+as required, so send the payment's amount; the sandbox voids the whole
+payment either way.
 
 `2029` means the payment has settled. Refund it in full instead:
 
