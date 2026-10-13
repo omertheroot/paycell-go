@@ -430,6 +430,34 @@ func TestQueryPaymentStatus(t *testing.T) {
 	}
 }
 
+// Production splits the card token from the 3D page. An overridden
+// PaymentURL takes the token endpoint with it.
+func TestEndpointDefaults(t *testing.T) {
+	creds := Config{ApplicationName: "a", ApplicationPassword: "p", SecureCode: "s"}
+
+	prod := creds
+	prod.Environment = Production
+	c, _ := New(prod)
+	if got := c.CardTokenURL(); got != "https://epayment-gtm.turkcell.com.tr/paymentmanagement/rest/getCardTokenSecure" {
+		t.Errorf("prod card token = %q", got)
+	}
+	if got := c.ThreeDSecureURL(); got != "https://epayment.turkcell.com.tr/paymentmanagement/rest/threeDSecure" {
+		t.Errorf("prod 3D page = %q", got)
+	}
+
+	c, _ = New(creds)
+	if got := c.CardTokenURL(); got != "https://omccstb.turkcell.com.tr/paymentmanagement/rest/getCardTokenSecure" {
+		t.Errorf("test card token = %q", got)
+	}
+
+	moved := prod
+	moved.PaymentURL = "https://pay.example/rest"
+	c, _ = New(moved)
+	if got := c.CardTokenURL(); got != "https://pay.example/rest/getCardTokenSecure" {
+		t.Errorf("card token did not follow PaymentURL: %q", got)
+	}
+}
+
 func TestHTTPErrorIsReported(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)

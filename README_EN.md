@@ -71,8 +71,11 @@ c, err := paycell.New(paycell.Config{
 })
 ```
 
-Every endpoint can be overridden (`ProvisionURL`, `PaymentURL`, `CancelURL`,
-`SDKInitURL`, `SDKHomeURL`). Merchants are sometimes given different hosts.
+Every endpoint can be overridden (`ProvisionURL`, `PaymentURL`, `CardTokenURL`,
+`CancelURL`, `SDKInitURL`, `SDKHomeURL`). Merchants are sometimes given
+different hosts. In production the card token sits on
+`epayment-gtm.turkcell.com.tr` and the 3D page on `epayment.turkcell.com.tr`;
+both are the defaults.
 
 ## Paying
 
@@ -249,7 +252,7 @@ Provision services, on `Config.ProvisionURL`:
 `GetPaymentMethodList` · `OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
 `GetProvisionHistory` · `SummaryReconciliation`
 
-Payment management, on `Config.PaymentURL`:
+Payment management, on `Config.PaymentURL` and `Config.CardTokenURL`:
 
 `GetCardTokenSecure` · `BuildCardTokenRequest` · `ThreeDSecureForm`
 

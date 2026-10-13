@@ -72,8 +72,10 @@ c, err := paycell.New(paycell.Config{
 })
 ```
 
-Bütün adresler değiştirilebilir (`ProvisionURL`, `PaymentURL`, `CancelURL`,
-`SDKInitURL`, `SDKHomeURL`). Bazı üye işyerlerine farklı sunucular tanımlanıyor.
+Bütün adresler değiştirilebilir (`ProvisionURL`, `PaymentURL`, `CardTokenURL`,
+`CancelURL`, `SDKInitURL`, `SDKHomeURL`). Bazı üye işyerlerine farklı sunucular
+tanımlanıyor. Prod'da kart token'ı `epayment-gtm.turkcell.com.tr`, 3D sayfası
+`epayment.turkcell.com.tr` üzerinde; ikisi de varsayılan.
 
 ## Ödeme almak
 
@@ -252,7 +254,7 @@ Provizyon servisleri, `Config.ProvisionURL` üzerinde:
 `GetPaymentMethodList` · `OpenMobilePayment` · `SendOTP` · `ValidateOTP` ·
 `GetProvisionHistory` · `SummaryReconciliation`
 
-Payment management, `Config.PaymentURL` üzerinde:
+Payment management, `Config.PaymentURL` ve `Config.CardTokenURL` üzerinde:
 
 `GetCardTokenSecure` · `BuildCardTokenRequest` · `ThreeDSecureForm`
 

@@ -8,8 +8,9 @@ import (
 	"strings"
 )
 
-// CardTokenURL is the getCardTokenSecure endpoint.
-func (c *Client) CardTokenURL() string { return c.cfg.PaymentURL + "getCardTokenSecure" }
+// CardTokenURL is the getCardTokenSecure endpoint. Not on the same host as
+// ThreeDSecureURL in production.
+func (c *Client) CardTokenURL() string { return c.cfg.CardTokenURL }
 
 // ThreeDSecureURL is where the customer's browser gets POSTed for 3D.
 func (c *Client) ThreeDSecureURL() string { return c.cfg.PaymentURL + "threeDSecure" }

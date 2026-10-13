@@ -36,7 +36,7 @@ are required.
 | `DefaultMSISDN` | used by calls that do not carry a subscriber number |
 | `ReferencePrefix` | the digits `NewReferenceNumber` puts in front |
 | `SkipResponseHashCheck` | turns off card token signature checking, leave it off |
-| `ProvisionURL`, `PaymentURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | endpoint overrides |
+| `ProvisionURL`, `PaymentURL`, `CardTokenURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | endpoint overrides; `CardTokenURL` follows `PaymentURL` when only that is set |
 | `HTTPClient`, `Timeout` | transport, 30s by default |
 
 ### Default endpoints
@@ -44,7 +44,8 @@ are required.
 | | Test | Production |
 | --- | --- | --- |
 | Provision | `tpay-test.turkcell.com.tr/tpay/provision/services/restful/getCardToken/` | `tpay.turkcell.com.tr/...` |
-| Payment mgmt | `omccstb.turkcell.com.tr/paymentmanagement/rest/` | `epayment.turkcell.com.tr/...` |
+| Card token | `omccstb.turkcell.com.tr/paymentmanagement/rest/getCardTokenSecure` | `epayment-gtm.turkcell.com.tr/...` |
+| 3D page | `omccstb.turkcell.com.tr/paymentmanagement/rest/threeDSecure` | `epayment.turkcell.com.tr/...` |
 | Cancel / status | `zone-test.turkcell.com.tr/tpay/zone/services/cancelrestful/cancelService/` | `zone-ist.paycell.com.tr/...` |
 | Web SDK | `websdktest.turkcell.com.tr/api/session/init` | `paycellsdk.paycell.com.tr/...` |
 
@@ -122,7 +123,7 @@ Exported: `RequestHash`, `ResponseHash`, `VerifyCardTokenResponse`.
 
 ## Card token
 
-`getCardTokenSecure`, on `Config.PaymentURL`. Card data goes here and nowhere
+`getCardTokenSecure`, at `Config.CardTokenURL`. Card data goes here and nowhere
 else: the provision services never see it.
 
 ```go

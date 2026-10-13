@@ -36,7 +36,7 @@ zorunlu.
 | `DefaultMSISDN` | çağrılarda numara verilmezse kullanılır |
 | `ReferencePrefix` | `NewReferenceNumber`'ın başa koyduğu haneler |
 | `SkipResponseHashCheck` | kart token yanıtının imza kontrolünü kapatır, açık bırakın |
-| `ProvisionURL`, `PaymentURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | adres değişikliği |
+| `ProvisionURL`, `PaymentURL`, `CardTokenURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | adres değişikliği; yalnız `PaymentURL` verilirse `CardTokenURL` onu izler |
 | `HTTPClient`, `Timeout` | taşıma katmanı, varsayılan 30 sn |
 
 ### Varsayılan adresler
@@ -44,7 +44,8 @@ zorunlu.
 | | Test | Prod |
 | --- | --- | --- |
 | Provizyon | `tpay-test.turkcell.com.tr/tpay/provision/services/restful/getCardToken/` | `tpay.turkcell.com.tr/...` |
-| Payment mgmt | `omccstb.turkcell.com.tr/paymentmanagement/rest/` | `epayment.turkcell.com.tr/...` |
+| Kart token'ı | `omccstb.turkcell.com.tr/paymentmanagement/rest/getCardTokenSecure` | `epayment-gtm.turkcell.com.tr/...` |
+| 3D sayfası | `omccstb.turkcell.com.tr/paymentmanagement/rest/threeDSecure` | `epayment.turkcell.com.tr/...` |
 | İptal / statü | `zone-test.turkcell.com.tr/tpay/zone/services/cancelrestful/cancelService/` | `zone-ist.paycell.com.tr/...` |
 | Web SDK | `websdktest.turkcell.com.tr/api/session/init` | `paycellsdk.paycell.com.tr/...` |
 
@@ -123,7 +124,7 @@ Büyük harfe çevirme atlanırsa imza hiçbir zaman tutmaz. Dışarı açık ol
 
 ## Kart token'ı
 
-`getCardTokenSecure`, `Config.PaymentURL` üzerinde. Kart verisi yalnızca bu
+`getCardTokenSecure`, `Config.CardTokenURL` adresinde. Kart verisi yalnızca bu
 servise gider, provizyon servislerine hiç gitmez.
 
 ```go

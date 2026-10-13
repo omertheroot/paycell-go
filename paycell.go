@@ -135,14 +135,18 @@ const (
 )
 
 // Default endpoints per environment. Merchants are occasionally given
-// different hosts (epayment-gtm, a dedicated provision host); override them
-// through Config.
+// different hosts; override them through Config.
 const (
 	testProvisionURL = "https://tpay-test.turkcell.com.tr/tpay/provision/services/restful/getCardToken/"
 	prodProvisionURL = "https://tpay.turkcell.com.tr/tpay/provision/services/restful/getCardToken/"
 
 	testPaymentURL = "https://omccstb.turkcell.com.tr/paymentmanagement/rest/"
 	prodPaymentURL = "https://epayment.turkcell.com.tr/paymentmanagement/rest/"
+
+	// In production getCardTokenSecure lives on its own host, the 3D page
+	// stays on epayment.
+	testCardTokenURL = testPaymentURL + "getCardTokenSecure"
+	prodCardTokenURL = "https://epayment-gtm.turkcell.com.tr/paymentmanagement/rest/getCardTokenSecure"
 
 	testCancelURL = "https://zone-test.turkcell.com.tr/tpay/zone/services/cancelrestful/cancelService/"
 	prodCancelURL = "https://zone-ist.paycell.com.tr/tpay/zone/services/cancelrestful/cancelService/"
@@ -195,6 +199,7 @@ type Config struct {
 	// Endpoint overrides. Empty values fall back to Environment defaults.
 	ProvisionURL string // .../provision/services/restful/getCardToken/
 	PaymentURL   string // .../paymentmanagement/rest/
+	CardTokenURL string // .../getCardTokenSecure, follows PaymentURL if only that is set
 	CancelURL    string // .../cancelrestful/cancelService/
 	SDKInitURL   string // .../api/session/init
 	SDKHomeURL   string // .../home/ , the tracking id is appended
@@ -228,8 +233,12 @@ func New(cfg Config) (*Client, error) {
 	}
 
 	prod := cfg.Environment == Production
+	if cfg.CardTokenURL == "" && cfg.PaymentURL != "" {
+		cfg.CardTokenURL = slashed(cfg.PaymentURL) + "getCardTokenSecure"
+	}
 	cfg.ProvisionURL = slashed(pick(cfg.ProvisionURL, prod, prodProvisionURL, testProvisionURL))
 	cfg.PaymentURL = slashed(pick(cfg.PaymentURL, prod, prodPaymentURL, testPaymentURL))
+	cfg.CardTokenURL = pick(cfg.CardTokenURL, prod, prodCardTokenURL, testCardTokenURL)
 	cfg.CancelURL = slashed(pick(cfg.CancelURL, prod, prodCancelURL, testCancelURL))
 	cfg.SDKInitURL = pick(cfg.SDKInitURL, prod, prodSDKInitURL, testSDKInitURL)
 	cfg.SDKHomeURL = slashed(pick(cfg.SDKHomeURL, prod, prodSDKHomeURL, testSDKHomeURL))
