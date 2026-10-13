@@ -6,21 +6,30 @@
 package sandbox
 
 import (
-	"context"
+	"html"
+	"io"
 	"log"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	paycell "github.com/omertheroot/paycell-go"
 )
 
-// TestCard works in the sandbox. 3D password is 123456.
+// TestCard is Paycell's mock bank card, the only one the sandbox actually
+// charges. 3D password is 123456. It expires 12/26.
 var TestCard = paycell.Card{
-	Number:      "5200190006338608",
-	ExpireMonth: "01",
-	ExpireYear:  "30",
-	CVC:         "410",
+	Number:      "1000000000000016",
+	ExpireMonth: "12",
+	ExpireYear:  "26",
+	CVC:         "000",
 }
+
+// OTP is the code the sandbox accepts for Paycell's own OTPs.
+const OTP = "111111"
 
 // Client builds a sandbox client, or dies saying why.
 func Client() *paycell.Client {
@@ -57,43 +66,39 @@ func env(key, fallback string) string {
 	return fallback
 }
 
-// PayParams returns something the shared test merchant will actually accept.
+// Pass3D takes a session through the sandbox's simulated bank page the way
+// the customer's browser would. Sandbox only: in production it is the
+// customer who does this, see examples/3d-secure.
 //
-// In your own code this is just Card: TestCard and you can ignore all of
-// this. The shared sandbox merchant won't settle a card that isn't already on
-// file for the subscriber (4003), so we fall back to a stored one.
-func PayParams(ctx context.Context, c *paycell.Client, amount paycell.Amount, ref string) paycell.PayParams {
-	params := paycell.PayParams{Card: TestCard, Amount: amount, ReferenceNumber: ref}
-
-	token, err := c.GetCardTokenSecure(ctx, TestCard)
-	if err != nil {
-		log.Fatalf("could not tokenise the test card: %v", err)
+// The page checks the code in JavaScript and then posts action=success, so
+// there is nothing to type.
+func Pass3D(c *paycell.Client, sessionID string) {
+	jar, _ := cookiejar.New(nil)
+	hc := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	post := func(u string, form url.Values) string {
+		resp, err := hc.PostForm(u, form)
+		if err != nil {
+			log.Fatalf("3D page: %v", err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
 	}
-	params.Card = paycell.Card{}
-	params.CardToken = token.CardToken
-
-	// No dry-run endpoint, so find out by looking at what it holds for this
-	// subscriber.
-	cards, err := c.GetCards(ctx, nil)
-	if err != nil || len(cards.Cards()) == 0 {
-		return params
-	}
-	if !restrictsNewCards(ctx, c) {
-		return params
+	between := func(s, start string) string {
+		_, s, _ = strings.Cut(s, start)
+		s, _, _ = strings.Cut(s, `"`)
+		return html.UnescapeString(s)
 	}
 
-	log.Printf("   (this merchant only settles cards on file, using %s)", cards.Cards()[0].MaskedCardNo)
-	return paycell.PayParams{CardID: cards.Cards()[0].CardID, Amount: amount, ReferenceNumber: ref}
-}
-
-// restrictsNewCards tries a 1 kuruş provision and watches for 4003.
-func restrictsNewCards(ctx context.Context, c *paycell.Client) bool {
-	token, err := c.GetCardTokenSecure(ctx, TestCard)
-	if err != nil {
-		return false
-	}
-	_, err = c.Provision(ctx, &paycell.ProvisionRequest{
-		CardToken: token.CardToken, Amount: 1, ReferenceNumber: c.NewReferenceNumber(),
+	// localhost is the callback host the sandbox has registered.
+	post(c.ThreeDSecureURL(), url.Values{
+		"threeDSessionId": {sessionID},
+		"callbackurl":     {"http://localhost/callback"},
+		"isPost3DResult":  {"true"},
 	})
-	return paycell.HasCode(err, "4003")
+	result := post(strings.TrimSuffix(c.ThreeDSecureURL(), "threeDSecure")+"mockBankResult", url.Values{
+		"threeDSessionId": {sessionID},
+		"action":          {"success"},
+	})
+	post(between(result, `action="`), url.Values{"mdStatus": {between(result, `name="mdStatus" value="`)}})
 }

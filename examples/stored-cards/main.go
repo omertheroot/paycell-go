@@ -2,8 +2,8 @@
 //
 //	go run ./examples/stored-cards
 //
-// The listing is OTP gated, so the first call comes back 3110 and you have to
-// walk the subscriber through a one time password before it opens up.
+// Storing needs a 3D session the customer has passed, and the listing sits
+// behind a one time password tied to a reference number.
 package main
 
 import (
@@ -30,81 +30,84 @@ func main() {
 	log.Printf("   eulaId %s, %d bytes of Turkish terms", terms.ID(), len(terms.TermsOfServiceHTMLContentTR))
 
 	sandbox.Step("store a card")
-	// Single use, so this needs a fresh one even if the same card was just
-	// charged.
+	// Nothing is being bought, so a 1 kuruş session and no provision.
+	// Nothing gets charged.
 	token, err := c.GetCardTokenSecure(ctx, sandbox.TestCard)
 	if err != nil {
 		log.Fatal(err)
 	}
-	reg, err := c.RegisterCard(ctx, &paycell.RegisterCardRequest{
-		CardToken: token.CardToken,
-		Alias:     "İş kartı",
-		IsDefault: true,
-		EulaID:    terms.ID(),
-	})
+	sess, err := c.GetThreeDSession(ctx, &paycell.ThreeDSessionRequest{CardToken: token.CardToken, Amount: 1})
 	if err != nil {
-		// 4003 means the sandbox merchant won't store this card for this
-		// subscriber. The listing below still works.
-		log.Printf("   could not store it: %v", err)
-	} else {
+		log.Fatal(err)
+	}
+	sandbox.Pass3D(c, sess.ThreeDSessionID)
+
+	result, err := c.GetThreeDSessionResult(ctx, &paycell.ThreeDSessionResultRequest{ThreeDSessionID: sess.ThreeDSessionID})
+	if err != nil || !result.Verified() {
+		log.Fatalf("   3D not passed, nothing to store: %v", err)
+	}
+	reg, err := c.RegisterCard(ctx, &paycell.RegisterCardRequest{
+		CardToken:       token.CardToken,
+		ThreeDSessionID: sess.ThreeDSessionID,
+		Alias:           "İş kartı",
+		EulaID:          terms.ID(),
+	})
+	ours := err == nil
+	switch {
+	case paycell.HasCode(err, paycell.CodeCardAlreadyRegistered):
+		log.Printf("   already in the wallet as %s", reg.CardID)
+	case err != nil:
+		log.Fatalf("   could not store it: %v", err)
+	default:
 		log.Printf("   stored as %s", reg.CardID)
 	}
 
 	sandbox.Step("list the stored cards")
-	methods, err := c.GetPaymentMethods(ctx, nil)
-	if paycell.IsOTPRequired(err) {
-		methods, err = unlockWithOTP(ctx, c)
-	}
-	if err != nil {
+	methods, err := listWithOTP(ctx, c)
+	switch {
+	case paycell.HasCode(err, "1002"):
+		log.Print("   the shared PAYCELLTEST merchant has no getPaymentMethodList (1002), a test channel does")
+	case err != nil:
 		log.Fatal(err)
+	default:
+		for _, card := range methods.Cards() {
+			log.Printf("   %s  %-22s %-8s default=%v expired=%v",
+				card.MaskedCardNo, card.Alias, card.CardBrand, card.IsDefault, card.IsExpired)
+		}
 	}
 
-	cards := methods.Cards()
-	for _, card := range cards {
-		log.Printf("   %s  %-22s %-8s default=%v expired=%v",
-			card.MaskedCardNo, card.Alias, card.CardBrand, card.IsDefault, card.IsExpired)
-	}
-	if m := methods.MobilePayment; m != nil {
-		log.Printf("   mobile payment: open=%v remaining=%d kuruş", m.IsDcbOpen, m.RemainingLimit)
-	}
-	if len(cards) == 0 {
-		return
-	}
-
-	sandbox.Step("pay with a stored card, by id")
+	sandbox.Step("pay with the stored card, by id")
 	ref := c.NewReferenceNumber()
-	res, err := c.Pay(ctx, paycell.PayParams{CardID: cards[0].CardID, Amount: 100, ReferenceNumber: ref})
+	res, err := c.Pay(ctx, paycell.PayParams{CardID: reg.CardID, Amount: 100, ReferenceNumber: ref})
 	if err != nil {
 		log.Fatalf("   %v", err)
 	}
 	log.Printf("   order %s, approval %s", res.OrderID, res.ApprovalCode)
-	if _, err := c.Reverse(ctx, &paycell.ReverseRequest{OriginalReferenceNumber: ref}); err != nil {
+	if _, err := c.Reverse(ctx, &paycell.ReverseRequest{OriginalReferenceNumber: ref, Amount: 100}); err != nil {
 		log.Printf("   reverse failed: %v", err)
 	}
 
-	sandbox.Step("rename it, then delete the one we stored")
-	if reg != nil && reg.CardID != "" {
-		if _, err := c.UpdateCard(ctx, &paycell.UpdateCardRequest{
-			CardID: reg.CardID, Alias: "Yeni ad", EulaID: terms.ID(),
-		}); err != nil {
-			log.Printf("   rename failed: %v", err)
-		}
-		if _, err := c.DeleteCard(ctx, &paycell.DeleteCardRequest{CardID: reg.CardID}); err != nil {
-			log.Printf("   delete failed: %v", err)
-		} else {
-			log.Print("   deleted")
-		}
+	sandbox.Step("rename it, then delete it")
+	if !ours {
+		log.Print("   not ours, leaving it")
+		return
+	}
+	if _, err := c.UpdateCard(ctx, &paycell.UpdateCardRequest{
+		CardID: reg.CardID, Alias: "Yeni ad", EulaID: terms.ID(),
+	}); err != nil {
+		log.Printf("   rename failed: %v", err)
+	}
+	if _, err := c.DeleteCard(ctx, &paycell.DeleteCardRequest{CardID: reg.CardID}); err != nil {
+		log.Printf("   delete failed: %v", err)
 	} else {
-		log.Print("   nothing of ours to clean up")
+		log.Print("   deleted")
 	}
 }
 
-// unlockWithOTP walks the OTP that gates the card list. Both calls carry
-// VALIDATION_TYPE=PM_LIST, which is what says this OTP is for opening the
-// list rather than authorising a payment.
-func unlockWithOTP(ctx context.Context, c *paycell.Client) (*paycell.PaymentMethodsResponse, error) {
-	log.Print("   the list is OTP gated (3110)")
-
+// listWithOTP walks the OTP that gates the card list. The reference number is
+// what ties the three calls together, and VALIDATION_TYPE=PM_LIST says this
+// OTP opens the list rather than authorising a payment.
+func listWithOTP(ctx context.Context, c *paycell.Client) (*paycell.PaymentMethodsResponse, error) {
 	ref := c.NewReferenceNumber()
 	otp, err := c.SendOTP(ctx, &paycell.SendOTPRequest{
 		ReferenceNumber: ref,
@@ -115,7 +118,7 @@ func unlockWithOTP(ctx context.Context, c *paycell.Client) (*paycell.PaymentMeth
 	}
 	log.Printf("   OTP sent, token %s", otp.Token)
 
-	code := ask("   enter the code the subscriber received: ")
+	code := ask("   enter the code the subscriber received (sandbox: " + sandbox.OTP + "): ")
 	if _, err := c.ValidateOTP(ctx, &paycell.ValidateOTPRequest{
 		OTP:             code,
 		Token:           otp.Token,
@@ -125,10 +128,7 @@ func unlockWithOTP(ctx context.Context, c *paycell.Client) (*paycell.PaymentMeth
 		return nil, err
 	}
 
-	return c.GetPaymentMethods(ctx, &paycell.PaymentMethodsRequest{
-		ReferenceNumber: ref,
-		OTPToken:        otp.Token,
-	})
+	return c.GetPaymentMethodList(ctx, &paycell.PaymentMethodListRequest{ReferenceNumber: ref})
 }
 
 func ask(prompt string) string {

@@ -23,14 +23,14 @@ func main() {
 
 	sandbox.Step("pay 5 TL")
 	ref := c.NewReferenceNumber()
-	if _, err := c.Pay(ctx, sandbox.PayParams(ctx, c, 500, ref)); err != nil {
+	if _, err := c.Pay(ctx, paycell.PayParams{Card: sandbox.TestCard, Amount: 500, ReferenceNumber: ref}); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("   reference %s", ref)
 
 	sandbox.Step("refund 2 TL of it")
 	// Required. Leave it out and you get 2008, not a full refund.
-	if _, err := c.Refund(ctx, &paycell.RefundRequest{
+	if _, err := c.RefundAll(ctx, &paycell.RefundRequest{
 		OriginalReferenceNumber: ref, Amount: 200,
 	}); err != nil {
 		log.Fatal(err)
@@ -39,7 +39,7 @@ func main() {
 
 	sandbox.Step("try to refund 4 TL more")
 	// They accumulate, and the total is capped at what was paid.
-	_, err := c.Refund(ctx, &paycell.RefundRequest{OriginalReferenceNumber: ref, Amount: 400})
+	_, err := c.RefundAll(ctx, &paycell.RefundRequest{OriginalReferenceNumber: ref, Amount: 400})
 	log.Printf("   %v", err)
 	if paycell.HasCode(err, "2015") {
 		log.Print("   2015: the total would exceed what was paid")
@@ -50,7 +50,7 @@ func main() {
 	log.Printf("   %v", err)
 
 	sandbox.Step("count what actually came back")
-	inq, err := c.Inquire(ctx, &paycell.InquireRequest{OriginalReferenceNumber: ref})
+	inq, err := c.InquireAll(ctx, &paycell.InquireRequest{OriginalReferenceNumber: ref})
 	if err != nil {
 		log.Fatal(err)
 	}

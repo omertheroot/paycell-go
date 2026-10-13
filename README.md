@@ -31,7 +31,7 @@ kurulum gerektirmeden çalışıyor.
 | [`basic-payment`](examples/basic-payment) | en kısa yol: token, ödeme, sorgu, iptal |
 | [`3d-secure`](examples/3d-secure) | tarayıcıdaki yönlendirme akışı, localhost'ta |
 | [`card-token-browser`](examples/card-token-browser) | kart numarası sunucunuza hiç uğramadan token alma |
-| [`stored-cards`](examples/stored-cards) | cüzdana kart kaydetme, OTP'li listeleme, id ile ödeme |
+| [`stored-cards`](examples/stored-cards) | 3D ile kart kaydetme, OTP'li listeleme, id ile ödeme, silme |
 | [`refund`](examples/refund) | iptal mi iade mi, kısmi iade, gerçekten işleyeni sayma |
 | [`mobile-payment`](examples/mobile-payment) | mobil ödeme (DCB), OTP ve `provisionAll` |
 | [`web-sdk`](examples/web-sdk) | Paycell'in barındırdığı ödeme sayfası ve statü sorgusu |

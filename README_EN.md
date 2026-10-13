@@ -31,7 +31,7 @@ Paycell publishes for integration work.
 | [`basic-payment`](examples/basic-payment) | the short path: token, pay, inquire, reverse |
 | [`3d-secure`](examples/3d-secure) | the browser redirect flow, on localhost |
 | [`card-token-browser`](examples/card-token-browser) | tokenising the card without the number reaching your server |
-| [`stored-cards`](examples/stored-cards) | storing a card, the OTP gated listing, paying by id |
+| [`stored-cards`](examples/stored-cards) | storing a card after 3D, the OTP gated listing, paying by id, deleting |
 | [`refund`](examples/refund) | reverse or refund, partial refunds, counting what applied |
 | [`mobile-payment`](examples/mobile-payment) | direct carrier billing, OTP and `provisionAll` |
 | [`web-sdk`](examples/web-sdk) | Paycell's hosted checkout and the status poll |

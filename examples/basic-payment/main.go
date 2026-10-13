@@ -24,9 +24,7 @@ func main() {
 	ref := c.NewReferenceNumber()
 
 	sandbox.Step("pay 1 TL")
-	// In your own integration this is just
-	//   paycell.PayParams{Card: card, Amount: 100, ReferenceNumber: ref}
-	res, err := c.Pay(ctx, sandbox.PayParams(ctx, c, 100, ref))
+	res, err := c.Pay(ctx, paycell.PayParams{Card: sandbox.TestCard, Amount: 100, ReferenceNumber: ref})
 
 	var pErr *paycell.Error
 	switch {
@@ -40,7 +38,7 @@ func main() {
 	sandbox.Step("inquire")
 	// Always worth doing after a timeout. The payment can be through even
 	// when the reply got lost.
-	inq, err := c.Inquire(ctx, &paycell.InquireRequest{OriginalReferenceNumber: ref})
+	inq, err := c.InquireAll(ctx, &paycell.InquireRequest{OriginalReferenceNumber: ref})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,10 +47,10 @@ func main() {
 	}
 
 	sandbox.Step("reverse")
-	rev, err := c.Reverse(ctx, &paycell.ReverseRequest{OriginalReferenceNumber: ref})
+	rev, err := c.Reverse(ctx, &paycell.ReverseRequest{OriginalReferenceNumber: ref, Amount: 100})
 	if paycell.IsAlreadySettled(err) {
 		log.Print("   too late to reverse, refunding the full amount")
-		rev, err = c.Refund(ctx, &paycell.RefundRequest{OriginalReferenceNumber: ref, Amount: 100})
+		rev, err = c.RefundAll(ctx, &paycell.RefundRequest{OriginalReferenceNumber: ref, Amount: 100})
 	}
 	if err != nil {
 		log.Fatalf("   the payment is still standing: %v", err)
