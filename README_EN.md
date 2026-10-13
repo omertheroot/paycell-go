@@ -113,6 +113,11 @@ res, err := c.Complete3D(ctx, load(r), params)
 passed. Otherwise it returns `*ErrNotVerified` and nothing is provisioned. The
 callback itself is unauthenticated, so never take it as proof of anything.
 
+The customer comes back to the callback with a `POST`. Paycell only sends
+customers back to addresses registered for your application, so have them
+register yours, or the customer stops on a "3D Yönlendirme Hatası" page.
+`localhost` passes in the sandbox.
+
 ## Saving cards
 
 Three ways in, depending on when you want the card stored:

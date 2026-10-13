@@ -314,13 +314,30 @@ form := c.ThreeDSecureForm(paycell.ThreeDFormParams{
     ThreeDSessionID: sess.ThreeDSessionID,
     CallbackURL:     "https://magaza.example/callback?ref=" + ref,
     IsPoint:         false, // puanla ödeme
-    IsPost3DResult:  false, // true ise sonuç callback'e POST edilir
+    IsPost3DResult:  true,  // sonuç callback'e POST edilir
 })
 w.Write([]byte(form.HTML()))
 ```
 
 `HTML()` kendi kendini gönderen bir sayfa üretir, bütün değerler kaçırılmış
 hâlde. POST'u sunucudan atmayın, dönüş yolu bozulur.
+
+Dönüş (test kanalında ölçüldü):
+
+| `isPost3DResult` | Callback'e gelen |
+| --- | --- |
+| `true` | `POST`, form gövdesi: `oid`, `mdStatus`, `mdErrorMsg`, `clientid`, `result`, `resultDescription`, `sessionId`, `currentStep`, `hash` |
+| `false` | `GET`, Paycell adrese hiçbir şey eklemez, yalnızca sizin query'niz gelir |
+
+`Start3D` `true` gönderir. Gövdedeki alanlar yine de kanıt değil, sonucu
+`GetThreeDSessionResult` ile sorun.
+
+Paycell müşteriyi yalnızca uygulamanız için tanımlanmış adreslere geri
+gönderir. Tanımsız bir callback adresinde müşteri bankaya hiç gitmez, Paycell'in
+"3D Yönlendirme Hatası" sayfasında kalır ve oturum düşer (sonuç
+`90013 Session not found`). Sandbox'ta `localhost` port ve yol fark etmeksizin
+geçiyor, `127.0.0.1` geçmiyor. Canlı callback adresinizi Paycell'e
+tanımlatın.
 
 ### getThreeDSessionResult
 

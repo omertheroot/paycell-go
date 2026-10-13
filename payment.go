@@ -66,13 +66,19 @@ type ThreeDFormParams struct {
 	// CallbackURL is where Paycell returns the customer. Carry your own
 	// reference number in it: the callback itself is not authenticated, so
 	// treat it as a hint and confirm with GetThreeDSessionResult.
+	//
+	// Paycell only sends customers back to hosts registered for your
+	// application. Any other host stops on their "3D Yönlendirme Hatası"
+	// page and the session is lost. localhost passes in the sandbox.
 	CallbackURL string
 
 	// IsPoint marks a payment that spends Paycell points.
 	IsPoint bool
 
-	// IsPost3DResult asks Paycell to POST the result to CallbackURL instead
-	// of redirecting with query parameters.
+	// IsPost3DResult makes Paycell POST the result to CallbackURL as a form:
+	// oid, mdStatus, result, resultDescription, sessionId, currentStep and a
+	// hash. Without it the customer comes back with a GET and Paycell adds
+	// nothing to the URL.
 	IsPost3DResult bool
 }
 
@@ -201,6 +207,8 @@ type ThreeDStart struct {
 
 // Start3D opens a session and returns the form to send the customer off
 // with. Nothing is charged yet. Complete3D does that when they come back.
+//
+// The customer comes back with a POST, see ThreeDFormParams.IsPost3DResult.
 func (c *Client) Start3D(ctx context.Context, p PayParams, callbackURL string) (*ThreeDStart, error) {
 	if err := c.resolveToken(ctx, &p); err != nil {
 		return nil, err
@@ -239,6 +247,7 @@ func (c *Client) Start3D(ctx context.Context, p PayParams, callbackURL string) (
 			ThreeDSessionID: res.ThreeDSessionID,
 			CallbackURL:     callbackURL,
 			IsPoint:         p.PointAmount > 0,
+			IsPost3DResult:  true,
 		}),
 	}, nil
 }

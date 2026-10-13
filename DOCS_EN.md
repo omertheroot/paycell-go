@@ -316,13 +316,30 @@ form := c.ThreeDSecureForm(paycell.ThreeDFormParams{
     ThreeDSessionID: sess.ThreeDSessionID,
     CallbackURL:     "https://shop.example/callback?ref=" + ref,
     IsPoint:         false, // paying with Paycell points
-    IsPost3DResult:  false, // true posts the result to the callback instead
+    IsPost3DResult:  true,  // the result is POSTed to the callback
 })
 w.Write([]byte(form.HTML()))
 ```
 
 `HTML()` renders a self-submitting page with every value escaped. Do not make
 the POST from your server: it breaks the return trip.
+
+The way back (measured on the test channel):
+
+| `isPost3DResult` | What reaches the callback |
+| --- | --- |
+| `true` | `POST`, form body: `oid`, `mdStatus`, `mdErrorMsg`, `clientid`, `result`, `resultDescription`, `sessionId`, `currentStep`, `hash` |
+| `false` | `GET`, Paycell adds nothing to the URL, only your own query arrives |
+
+`Start3D` sends `true`. The body is still no proof of anything, ask
+`GetThreeDSessionResult` for the outcome.
+
+Paycell only sends customers back to addresses registered for your
+application. With an unregistered callback the customer never reaches the
+bank: they stop on Paycell's "3D Yönlendirme Hatası" page and the session is
+lost (the result reads `90013 Session not found`). In the sandbox `localhost`
+passes whatever the port and path, `127.0.0.1` does not. Have Paycell register
+your production callback.
 
 ### getThreeDSessionResult
 

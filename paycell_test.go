@@ -829,6 +829,9 @@ func TestThreeDCallsOmitReferenceNumber(t *testing.T) {
 	if start.ReferenceNumber == "" {
 		t.Error("the reference number must still be tracked for the provision")
 	}
+	if start.Form.Fields["isPost3DResult"] != "true" {
+		t.Errorf("Start3D should ask for the result as a POST: %v", start.Form.Fields)
+	}
 
 	if _, err := c.Complete3D(ctx, start, params); err != nil {
 		t.Fatal(err)

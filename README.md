@@ -115,6 +115,11 @@ doğrulamayı geçtiyse alır. Geçemediyse `*ErrNotVerified` döner ve provizyo
 istenmez. Callback'in kendisi doğrulanmış bir kaynak değil, hiçbir şeyin
 kanıtı sayılmamalı.
 
+Müşteri callback'e `POST` ile döner. Paycell yalnızca uygulamanıza tanımlı
+adreslere geri gönderiyor; callback adresinizi Paycell'e tanımlatın, yoksa
+müşteri "3D Yönlendirme Hatası" sayfasında kalır. Sandbox'ta `localhost`
+geçiyor.
+
 ## Kart saklama
 
 Kartın ne zaman saklanmasını istediğinize göre iki yol var:
