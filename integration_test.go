@@ -11,14 +11,20 @@
 //	PAYCELL_APP_NAME PAYCELL_APP_PASSWORD PAYCELL_SECURE_CODE
 //	PAYCELL_MERCHANT_CODE PAYCELL_EULA_ID PAYCELL_PREFIX PAYCELL_MSISDN
 //
-// Provision services are IP allow-listed, so from an unregistered address
-// these just fail.
+// Paycell allow-lists server addresses in production. Both the shared
+// sandbox and a merchant test channel answered from an unregistered one.
 //
-// No real money involved. Sandbox, 1 TL, and everything gets reversed.
+// No real money involved. Sandbox amounts, and everything gets reversed,
+// refunded or deleted again.
 package paycell
 
 import (
 	"context"
+	"html"
+	"io"
+	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -61,7 +67,70 @@ func checkDecode(t *testing.T, label string, err error) {
 	}
 }
 
-var sandboxTestCard = Card{Number: "5200190006338608", ExpireMonth: "01", ExpireYear: "30", CVC: "410"}
+// Paycell's mock bank card, the only one the sandbox actually charges. The
+// bank test cards pass 3D and then get 4000 on the provision. It expires
+// 12/26, so look for a new one on Paycell's test card page after that.
+var sandboxTestCard = Card{Number: "1000000000000016", ExpireMonth: "12", ExpireYear: "26", CVC: "000"}
+
+// The OTP the sandbox accepts. Its 3D page wants 123456, a different code.
+const sandboxOTP = "111111"
+
+// Paycell only redirects to registered callback hosts. localhost is one in
+// the sandbox, whatever the port and path.
+const sandboxCallback = "http://localhost/paycell-go-test"
+
+// pay charges the test card without 3D and hands back the reference.
+func pay(t *testing.T, c *Client, amount Amount) string {
+	t.Helper()
+	ref := c.NewReferenceNumber()
+	res, err := c.Pay(context.Background(), PayParams{Card: sandboxTestCard, Amount: amount, ReferenceNumber: ref})
+	checkDecode(t, "provisionAll", err)
+	if err != nil {
+		t.Fatalf("pay: %v", err)
+	}
+	if res.OrderID == "" || res.ApprovalCode == "" {
+		t.Errorf("paid without an order id or approval code: %+v", res)
+	}
+	return ref
+}
+
+// passSandbox3D does what the customer's browser would on the sandbox's
+// simulated bank page. That page checks the code in JavaScript and then just
+// posts action=success, so nothing has to be typed.
+func passSandbox3D(t *testing.T, c *Client, sessionID string) {
+	t.Helper()
+	jar, _ := cookiejar.New(nil)
+	hc := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	post := func(u string, form url.Values) string {
+		t.Helper()
+		resp, err := hc.PostForm(u, form)
+		if err != nil {
+			t.Fatalf("3D page: %v", err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
+	}
+	between := func(s, start string) string {
+		_, s, _ = strings.Cut(s, start)
+		s, _, _ = strings.Cut(s, `"`)
+		return html.UnescapeString(s)
+	}
+
+	page := post(c.ThreeDSecureURL(), url.Values{
+		"threeDSessionId": {sessionID},
+		"callbackurl":     {sandboxCallback},
+		"isPost3DResult":  {"true"},
+	})
+	if !strings.Contains(page, "mockBankResult") {
+		t.Fatalf("no simulated bank page, Paycell said: %s", snippet([]byte(page)))
+	}
+	result := post(strings.TrimSuffix(c.ThreeDSecureURL(), "threeDSecure")+"mockBankResult", url.Values{
+		"threeDSessionId": {sessionID},
+		"action":          {"success"},
+	})
+	post(between(result, `action="`), url.Values{"mdStatus": {between(result, `name="mdStatus" value="`)}})
+}
 
 // The signature is the likeliest thing to have wrong, and the sandbox is the
 // only place that can settle it.
@@ -95,11 +164,10 @@ func TestSandboxLookups(t *testing.T) {
 
 	bin, err := c.GetCardBinInformation(ctx, &CardBinRequest{BinValue: "520019"})
 	checkDecode(t, "getCardBinInformation", err)
-	if err == nil {
-		info := bin.First()
-		if info == nil {
-			t.Fatal("no bin record for a known range")
-		}
+	if info := bin.First(); err == nil && info == nil {
+		// The shared sandbox no longer knows this range, a test channel does.
+		t.Log("no bin record for 520019")
+	} else if err == nil {
 		if !info.IsCreditCard() {
 			t.Errorf("520019 should be a credit card, got %q", info.CardType)
 		}
@@ -116,37 +184,17 @@ func TestSandboxLookups(t *testing.T) {
 	}
 }
 
-// The whole money path. Pay 1 TL on a stored card, find it in the inquiry,
-// reverse it.
+// The whole money path. Pay 1 TL, find it in the inquiry, reverse it.
 func TestSandboxPayInquireReverse(t *testing.T) {
 	c := sandbox(t)
 	ctx := context.Background()
 
-	cards, err := c.GetCards(ctx, nil)
-	checkDecode(t, "getCards", err)
-	if err != nil {
-		t.Skipf("cannot list stored cards: %v", err)
-	}
-	if len(cards.Cards()) == 0 {
-		t.Skip("the sandbox subscriber has no stored card to pay with")
-	}
-	card := cards.Cards()[0]
+	ref := pay(t, c, 100)
 
-	ref := c.NewReferenceNumber()
-	prov, err := c.Provision(ctx, &ProvisionRequest{CardID: card.CardID, Amount: 100, ReferenceNumber: ref})
-	checkDecode(t, "provision", err)
+	inq, err := c.InquireAll(ctx, &InquireRequest{OriginalReferenceNumber: ref})
+	checkDecode(t, "inquireAll", err)
 	if err != nil {
-		t.Fatalf("provision: %v", err)
-	}
-	if prov.OrderID == "" || prov.ApprovalCode == "" {
-		t.Errorf("provision succeeded without an order id or approval code: %+v", prov)
-	}
-	t.Logf("paid 1 TL, order %s approval %s ref %s", prov.OrderID, prov.ApprovalCode, ref)
-
-	inq, err := c.Inquire(ctx, &InquireRequest{OriginalReferenceNumber: ref})
-	checkDecode(t, "inquire", err)
-	if err != nil {
-		t.Errorf("inquire: %v", err)
+		t.Errorf("inquireAll: %v", err)
 	} else {
 		if len(inq.ProvisionList) == 0 {
 			t.Error("the payment does not appear in its own inquiry")
@@ -160,7 +208,7 @@ func TestSandboxPayInquireReverse(t *testing.T) {
 	}
 
 	// Give the money back whatever happened above.
-	rev, err := c.Reverse(ctx, &ReverseRequest{OriginalReferenceNumber: ref})
+	rev, err := c.Reverse(ctx, &ReverseRequest{OriginalReferenceNumber: ref, Amount: 100})
 	checkDecode(t, "reverse", err)
 	if err != nil {
 		t.Fatalf("reverse (the sandbox payment is still standing): %v", err)
@@ -168,19 +216,16 @@ func TestSandboxPayInquireReverse(t *testing.T) {
 	t.Logf("reversed, approval %s reconciliation %s", rev.ApprovalCode, rev.ReconciliationDate)
 }
 
-// A 3D session, as far as you can get without a browser.
+// A session nobody took to the bank must not read as verified.
 func TestSandboxThreeDSession(t *testing.T) {
 	c := sandbox(t)
 	ctx := context.Background()
 
-	cards, err := c.GetCards(ctx, nil)
-	if err != nil || len(cards.Cards()) == 0 {
-		t.Skipf("no stored card to open a session with: %v", err)
+	token, err := c.GetCardTokenSecure(ctx, sandboxTestCard)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	sess, err := c.GetThreeDSession(ctx, &ThreeDSessionRequest{
-		CardID: cards.Cards()[0].CardID, Amount: 100,
-	})
+	sess, err := c.GetThreeDSession(ctx, &ThreeDSessionRequest{CardToken: token.CardToken, Amount: 100})
 	checkDecode(t, "getThreeDSession", err)
 	if err != nil {
 		t.Fatalf("getThreeDSession: %v", err)
@@ -196,11 +241,134 @@ func TestSandboxThreeDSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getThreeDSessionResult: %v", err)
 	}
-	// Nobody went to the bank page, so this had better not read as verified.
 	if result.Verified() {
 		t.Error("an untouched session must not report as verified")
 	}
 	t.Logf("session %s step %q verified=%v", sess.ThreeDSessionID, result.CurrentStep, result.Verified())
+}
+
+// The 3D flow end to end with a freshly entered card.
+func TestSandbox3DPayment(t *testing.T) {
+	c := sandbox(t)
+	ctx := context.Background()
+
+	params := PayParams{Card: sandboxTestCard, Amount: 100}
+	start, err := c.Start3D(ctx, params, sandboxCallback)
+	if err != nil {
+		t.Fatalf("start3D: %v", err)
+	}
+	passSandbox3D(t, c, start.ThreeDSessionID)
+
+	res, err := c.Complete3D(ctx, start, params)
+	checkDecode(t, "complete3D", err)
+	if err != nil {
+		t.Fatalf("complete3D: %v", err)
+	}
+	t.Logf("paid with 3D, order %s approval %s", res.OrderID, res.ApprovalCode)
+
+	if _, err := c.Reverse(ctx, &ReverseRequest{OriginalReferenceNumber: start.ReferenceNumber, Amount: 100}); err != nil {
+		t.Fatalf("reverse (the sandbox payment is still standing): %v", err)
+	}
+}
+
+// What Paycell asks to see before go-live: store a card, list it behind the
+// OTP, pay with it with and without 3D, delete it.
+func TestSandboxStoredCard(t *testing.T) {
+	c := sandbox(t)
+	ctx := context.Background()
+
+	terms, err := c.GetTermsOfServiceContent(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Storing needs a session that passed 3D. Nothing is bought, so 1 kuruş
+	// and no provision.
+	token, err := c.GetCardTokenSecure(ctx, sandboxTestCard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := c.GetThreeDSession(ctx, &ThreeDSessionRequest{CardToken: token.CardToken, Amount: 1})
+	if err != nil {
+		t.Fatalf("getThreeDSession: %v", err)
+	}
+	passSandbox3D(t, c, sess.ThreeDSessionID)
+
+	reg, err := c.RegisterCard(ctx, &RegisterCardRequest{
+		CardToken:       token.CardToken,
+		ThreeDSessionID: sess.ThreeDSessionID,
+		Alias:           "paycell-go test",
+		EulaID:          terms.ID(),
+	})
+	checkDecode(t, "registerCard", err)
+	switch {
+	case HasCode(err, "3002"):
+		t.Skipf("the subscriber is at the card limit: %v", err)
+	case HasCode(err, CodeCardAlreadyRegistered):
+		t.Logf("already stored as %s, leaving it there", reg.CardID)
+	case err != nil:
+		t.Fatalf("registerCard: %v", err)
+	default:
+		t.Cleanup(func() {
+			if _, err := c.DeleteCard(context.Background(), &DeleteCardRequest{CardID: reg.CardID}); err != nil {
+				t.Errorf("deleteCard (the test card is still stored): %v", err)
+			}
+		})
+	}
+	cardID := reg.CardID
+	t.Logf("stored as %s", cardID)
+
+	// The list opens with the reference the OTP was validated with.
+	ref := c.NewReferenceNumber()
+	otp, err := c.SendOTP(ctx, &SendOTPRequest{ReferenceNumber: ref, ExtraParameters: CardListOTPParams()})
+	if err != nil {
+		t.Fatalf("sendOTP: %v", err)
+	}
+	if _, err := c.ValidateOTP(ctx, &ValidateOTPRequest{
+		OTP: sandboxOTP, Token: otp.Token, ReferenceNumber: ref, ExtraParameters: CardListOTPParams(),
+	}); err != nil {
+		t.Fatalf("validateOTP: %v", err)
+	}
+	list, err := c.GetPaymentMethodList(ctx, &PaymentMethodListRequest{ReferenceNumber: ref})
+	checkDecode(t, "getPaymentMethodList", err)
+	switch {
+	case HasCode(err, "1002"):
+		// The shared PAYCELLTEST merchant answers this way, a test channel does not.
+		t.Logf("getPaymentMethodList is not open for this merchant: %v", err)
+	case err != nil:
+		t.Errorf("getPaymentMethodList: %v", err)
+	default:
+		found := false
+		for _, card := range list.Cards() {
+			found = found || card.CardID == cardID
+		}
+		if !found {
+			t.Errorf("stored card %s missing from the list: %+v", cardID, list.Cards())
+		}
+	}
+
+	// By id, no 3D.
+	ref = c.NewReferenceNumber()
+	if _, err := c.Pay(ctx, PayParams{CardID: cardID, Amount: 100, ReferenceNumber: ref}); err != nil {
+		t.Fatalf("pay by card id: %v", err)
+	}
+	if _, err := c.Reverse(ctx, &ReverseRequest{OriginalReferenceNumber: ref, Amount: 100}); err != nil {
+		t.Errorf("reverse: %v", err)
+	}
+
+	// By id, with 3D.
+	params := PayParams{CardID: cardID, Amount: 100}
+	start, err := c.Start3D(ctx, params, sandboxCallback)
+	if err != nil {
+		t.Fatalf("start3D by card id: %v", err)
+	}
+	passSandbox3D(t, c, start.ThreeDSessionID)
+	if _, err := c.Complete3D(ctx, start, params); err != nil {
+		t.Fatalf("3D payment by card id: %v", err)
+	}
+	if _, err := c.Reverse(ctx, &ReverseRequest{OriginalReferenceNumber: start.ReferenceNumber, Amount: 100}); err != nil {
+		t.Errorf("reverse: %v", err)
+	}
 }
 
 func TestSandboxOTP(t *testing.T) {
@@ -217,8 +385,6 @@ func TestSandboxOTP(t *testing.T) {
 		t.Fatal("no OTP token returned")
 	}
 
-	// No way to read the code the sandbox sent, so test the rejection
-	// instead.
 	_, err = c.ValidateOTP(ctx, &ValidateOTPRequest{
 		OTP: "000000", Token: otp.Token, ReferenceNumber: ref, Amount: 100,
 	})
@@ -259,32 +425,22 @@ func TestSandboxRefund(t *testing.T) {
 	c := sandbox(t)
 	ctx := context.Background()
 
-	cards, err := c.GetCards(ctx, nil)
-	if err != nil || len(cards.Cards()) == 0 {
-		t.Skipf("no stored card to pay with: %v", err)
-	}
-
-	ref := c.NewReferenceNumber()
-	if _, err := c.Provision(ctx, &ProvisionRequest{
-		CardID: cards.Cards()[0].CardID, Amount: 500, ReferenceNumber: ref,
-	}); err != nil {
-		t.Fatalf("provision: %v", err)
-	}
+	ref := pay(t, c, 500)
 
 	// Leave the amount out and it's rejected, not treated as "all of it".
-	if _, err := c.Refund(ctx, &RefundRequest{OriginalReferenceNumber: ref}); !HasCode(err, "2008") {
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref}); !HasCode(err, "2008") {
 		t.Errorf("a refund without an amount should answer 2008, got %v", err)
 	}
 
-	part, err := c.Refund(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 200})
-	checkDecode(t, "refund", err)
+	part, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 200})
+	checkDecode(t, "refundAll", err)
 	if err != nil {
 		t.Fatalf("partial refund: %v", err)
 	}
 	t.Logf("refunded 2 of 5 TL, approval %s", part.ApprovalCode)
 
 	// They stack up against the same payment.
-	if _, err := c.Refund(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 200}); err != nil {
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 200}); err != nil {
 		t.Errorf("second partial refund: %v", err)
 	}
 
@@ -293,7 +449,7 @@ func TestSandboxRefund(t *testing.T) {
 		t.Errorf("reversing a refunded payment should answer 2027, got %v", err)
 	}
 
-	inq, err := c.Inquire(ctx, &InquireRequest{OriginalReferenceNumber: ref})
+	inq, err := c.InquireAll(ctx, &InquireRequest{OriginalReferenceNumber: ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,6 +463,11 @@ func TestSandboxRefund(t *testing.T) {
 		t.Errorf("inquiry reports %d kuruş refunded, want 400", refunded)
 	}
 	t.Logf("inquiry shows %d kuruş refunded across %d entries", refunded, len(inq.ProvisionList))
+
+	// The last 1 TL, so nothing is left standing.
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 100}); err != nil {
+		t.Errorf("refunding the rest: %v", err)
+	}
 }
 
 // Refunds are capped at what was paid, and a rejected one still turns up in
@@ -316,27 +477,17 @@ func TestSandboxOverRefund(t *testing.T) {
 	c := sandbox(t)
 	ctx := context.Background()
 
-	cards, err := c.GetCards(ctx, nil)
-	if err != nil || len(cards.Cards()) == 0 {
-		t.Skipf("no stored card to pay with: %v", err)
-	}
+	ref := pay(t, c, 500)
 
-	ref := c.NewReferenceNumber()
-	if _, err := c.Provision(ctx, &ProvisionRequest{
-		CardID: cards.Cards()[0].CardID, Amount: 500, ReferenceNumber: ref,
-	}); err != nil {
-		t.Fatalf("provision: %v", err)
-	}
-
-	if _, err := c.Refund(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 300}); err != nil {
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 300}); err != nil {
 		t.Fatalf("first refund: %v", err)
 	}
 	// 300 + 300 against a 500 payment.
-	if _, err := c.Refund(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 300}); !HasCode(err, "2015") {
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 300}); !HasCode(err, "2015") {
 		t.Errorf("refunding past the original amount should answer 2015, got %v", err)
 	}
 
-	inq, err := c.Inquire(ctx, &InquireRequest{OriginalReferenceNumber: ref})
+	inq, err := c.InquireAll(ctx, &InquireRequest{OriginalReferenceNumber: ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,4 +508,8 @@ func TestSandboxOverRefund(t *testing.T) {
 		t.Error("the rejected refund did not appear in the inquiry, so this test proves nothing")
 	}
 	t.Logf("refund lines total %d kuruş, of which %d actually applied", naive, applied)
+
+	if _, err := c.RefundAll(ctx, &RefundRequest{OriginalReferenceNumber: ref, Amount: 200}); err != nil {
+		t.Errorf("refunding the rest: %v", err)
+	}
 }

@@ -599,7 +599,9 @@ Sandbox'ta doğrudan görülenler:
 | `3002` | abone kart sınırında | önce bir kart silin; test kanalında sınır iki kart |
 | `3005` | kart zaten kayıtlı | yanıttaki `cardId`'yi kullanın |
 | `3112` | OTP hatalı | `remainingRetryCount` alanına bakın |
-| `4003` | kart sahibi için provizyon kısıtlı | kartın aboneye tanımlı olması gerekiyor |
+| `3032` | 3D doğrulaması başarısız | oturum 3D'den geçmeden provizyon istenmiş |
+| `4000` | banka hatası | sandbox'ta banka test kartları; MOCK BANK kartını kullanın |
+| `4003` | işlem onaylanmadı | 3D'siz kart kaydında da bu döndü |
 | `4015` | kart bilgisi boş | |
 
 Tam liste entegrasyon dokümanınızda. `pErr.Description` Paycell'in kendi

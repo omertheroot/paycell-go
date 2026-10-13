@@ -601,7 +601,9 @@ Seen directly in the sandbox:
 | `3002` | subscriber at the card limit | delete a card first; two on the test channel |
 | `3005` | card already registered | use the `cardId` in the response |
 | `3112` | wrong OTP | check `remainingRetryCount` |
-| `4003` | provision restricted for card holder | the card must belong to the subscriber |
+| `3032` | 3D authentication not successful | provisioned before the session passed 3D |
+| `4000` | bank error | the bank test cards in the sandbox; use the MOCK BANK card |
+| `4003` | transaction not approved | also what storing a card without 3D got |
 | `4015` | card info is empty | |
 
 Your integration pack has the full list. `pErr.Description` carries Paycell's

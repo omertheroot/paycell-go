@@ -300,11 +300,22 @@ Varsayılan olarak Paycell'in yayımladığı test bilgilerini (`PAYCELLTEST`,
 `PAYCELL_EULA_ID`, `PAYCELL_PREFIX` ve `PAYCELL_MSISDN` ile değiştirilir.
 Çözümleme hatası testi düşürür, çünkü bir yapının yanlış olduğu anlamına
 gelir; Paycell'in döndüğü hata kodu yalnızca loglanır, çünkü sandbox'ın
-beklenmedik bir durumda olduğunu gösterir. Ödemeler 1 TL ve hepsi geri
-alınıyor.
+beklenmedik bir durumda olduğunu gösterir. Ödemeler 1 ile 5 TL arası ve
+hepsi iptal ya da iade ediliyor; kaydedilen test kartı sonunda siliniyor.
 
-Test kartı: Denizbank `5200190006338608`, `01/30`, CVC `410`, 3D şifresi
-`123456`.
+Test kartı: Paycell'in MOCK BANK kartı `1000000000000016`, `12/26`, CVC
+`000`. Sandbox'ta gerçekten çekim yapan tek kart bu; banka test kartları 3D'den
+geçiyor ama provizyonda `4000` alıyor. 3D sayfasının kodu `123456`, Paycell
+OTP'si `111111`.
+
+3D'li testler tarayıcı açmaz: sandbox'ın 3D sayfası bir simülasyon, kodu
+JavaScript ile kontrol edip `action=success` gönderiyor, testler de aynısını
+yapıyor. Callback olarak `localhost` kullanılıyor, sandbox'ta geçen tanımlı
+adres o.
+
+Ortak `PAYCELLTEST` hesabında `getPaymentMethodList` `1002` dönüyor ve
+`520019` için BIN kaydı yok; test bunları loglayıp geçiyor. Kendi test
+kanalınızla bütün testler sonuna kadar koşar.
 
 ### Sandbox'ın değiştirdikleri
 
@@ -319,6 +330,20 @@ eleyerek bulundu:
 - `eulaId`, `getCards` yanıtında tırnaklı, `getTermsOfServiceContent`
   yanıtında tırnaksız geliyor; `binValue` her zaman tırnaksız. Bu tür alanlar
   ikisini de kabul eden `FlexString` tipinde.
+
+Bir üye işyeri test kanalında ayrıca görülenler:
+
+- Kart yalnızca 3D'den geçmiş bir oturumla saklanıyor (`3427`, ortak
+  sandbox'ta `4003`). `saveCard` hiçbir şey saklamıyor. Abone başına sınır
+  iki kart (`3002`).
+- `getPaymentMethodList` OTP'nin gönderildiği `referenceNumber` ile açılıyor,
+  doğrulanmış referans günlerce geçerli kalıyor.
+- Paycell tanımsız bir callback adresine dönmüyor: müşteri "3D Yönlendirme
+  Hatası" sayfasında kalıyor, oturum `90013` ile düşüyor.
+- `isPost3DResult` açıkken sonuç callback'e form olarak `POST` ediliyor,
+  kapalıyken dönüş `GET` ve adrese hiçbir şey eklenmiyor.
+- `getPrepaidCommission` ve `queryOrderVpf` dokümanda var ama iki sandbox'ta
+  da `1002` döndü; paket bu yüzden henüz ikisini modellemiyor.
 
 PREAUTH ve POSTAUTH ortak sandbox üye işyerinde `4015` ve `1024` dönüyor, oysa
 aynı kart ve alanlarla SALE çalışıyor. Bu, istek yapısından çok üye işyeri

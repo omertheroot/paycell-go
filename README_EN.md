@@ -299,10 +299,21 @@ merchant `9998`, eulaId `17`) and read overrides from `PAYCELL_APP_NAME`,
 `PAYCELL_EULA_ID`, `PAYCELL_PREFIX` and `PAYCELL_MSISDN`. A decode failure
 fails the test because it means a struct is wrong; a Paycell response code is
 logged, because it means the sandbox is in an unexpected state. Payments are
-1 TL and every one is reversed.
+1 to 5 TL and every one is reversed or refunded; the test card that gets
+stored is deleted at the end.
 
-Test card: Denizbank `5200190006338608`, `01/30`, CVC `410`, 3D password
-`123456`.
+Test card: Paycell's MOCK BANK card `1000000000000016`, `12/26`, CVC `000`.
+It is the only card the sandbox actually charges; the bank test cards pass 3D
+and then get `4000` on the provision. The 3D page wants `123456`, the Paycell
+OTP is `111111`.
+
+The 3D tests open no browser. The sandbox's 3D page is a simulation that
+checks the code in JavaScript and posts `action=success`, and the tests do
+the same. The callback is `localhost`, the registered host in the sandbox.
+
+On the shared `PAYCELLTEST` account `getPaymentMethodList` answers `1002`
+and there is no BIN record for `520019`; the tests log both and move on. With
+your own test channel every test runs to the end.
 
 ### What the sandbox changed
 
@@ -317,6 +328,20 @@ live requests:
 - `eulaId` arrives quoted from `getCards` and unquoted from
   `getTermsOfServiceContent`; `binValue` is always unquoted. Fields like these
   are typed `FlexString`, which takes either.
+
+Also seen on a merchant test channel:
+
+- A card is only stored with a session that passed 3D (`3427`, `4003` on the
+  shared sandbox). `saveCard` stores nothing. The limit is two cards per
+  subscriber (`3002`).
+- `getPaymentMethodList` opens with the `referenceNumber` the OTP went out
+  with, and a validated reference keeps working for days.
+- Paycell does not return to an unregistered callback: the customer stops on
+  a "3D Yönlendirme Hatası" page and the session dies with `90013`.
+- With `isPost3DResult` on, the result is `POST`ed to the callback as a form;
+  with it off the way back is a `GET` with nothing added to the URL.
+- `getPrepaidCommission` and `queryOrderVpf` are in the docs but answered
+  `1002` on both sandboxes, so the package does not model them yet.
 
 PREAUTH and POSTAUTH answer `4015` and `1024` on the shared sandbox merchant
 while SALE with the same card and fields succeeds, which points at merchant
