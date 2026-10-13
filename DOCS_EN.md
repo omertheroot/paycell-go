@@ -157,6 +157,10 @@ was not produced with your credentials.
 
 ## Payments
 
+The payment service in Paycell's docs is `provisionAll`. `provision` still
+answers but is no longer documented, so `Pay` and `Complete3D` use
+`provisionAll`. The fields below are the same for both.
+
 ### provision
 
 ```go
@@ -186,8 +190,8 @@ the payment was routed through iyzico. If the response omits
 
 ### provisionAll
 
-For everything other than a card: mobile payment, Paycell Kart, e-money. All
-`ProvisionRequest` fields apply, plus `paymentMethodType`: `CREDIT_CARD`
+Every method, cards included: card, mobile payment, Paycell Kart, e-money.
+All `ProvisionRequest` fields apply, plus `paymentMethodType`: `CREDIT_CARD`
 (default), `DCB`, `PCARD`, `EPARA`.
 
 ```go

@@ -178,11 +178,14 @@ func (p PayParams) provision() *ProvisionRequest {
 }
 
 // Pay tokenises if it has to, then charges. The non-3D flow, in one call.
+//
+// It goes through provisionAll, the payment service Paycell documents.
+// provision still answers, but it is not in their docs any more.
 func (c *Client) Pay(ctx context.Context, p PayParams) (*ProvisionResponse, error) {
 	if err := c.resolveToken(ctx, &p); err != nil {
 		return nil, err
 	}
-	return c.Provision(ctx, p.provision())
+	return c.ProvisionAll(ctx, &ProvisionAllRequest{ProvisionRequest: *p.provision()})
 }
 
 // ThreeDStart is what has to survive the customer's trip to the bank. Store
@@ -285,5 +288,5 @@ func (c *Client) Complete3D(ctx context.Context, start *ThreeDStart, p PayParams
 	p.ReferenceNumber = start.ReferenceNumber
 	req := p.provision()
 	req.ThreeDSessionID = start.ThreeDSessionID
-	return c.Provision(ctx, req)
+	return c.ProvisionAll(ctx, &ProvisionAllRequest{ProvisionRequest: *req})
 }

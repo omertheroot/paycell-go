@@ -317,9 +317,29 @@ func TestComplete3DRefusesUnverified(t *testing.T) {
 		t.Fatalf("err = %v, want *ErrNotVerified", err)
 	}
 	for _, p := range paths {
-		if strings.HasSuffix(p, "/provision/") {
+		if strings.Contains(p, "getCardToken/provision") {
 			t.Fatal("payment was provisioned despite failed 3D verification")
 		}
+	}
+}
+
+// provisionAll is the payment service in Paycell's docs, so both flows use it.
+func TestPayGoesThroughProvisionAll(t *testing.T) {
+	srv, got, path := jsonServer(t, `{"responseHeader":{"responseCode":"0"},"orderId":"o1"}`)
+	c := testClient(t, srv)
+
+	if _, err := c.Pay(context.Background(), PayParams{CardID: "card-1", Amount: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if *path != "/provision/services/restful/getCardToken/provisionAll/" {
+		t.Errorf("posted to %q", *path)
+	}
+	if (*got)["paymentMethodType"] != MethodCreditCard || (*got)["cardId"] != "card-1" {
+		t.Errorf("request = %v", *got)
+	}
+	// Paycell wants one card reference, the other left out entirely.
+	if _, ok := (*got)["cardToken"]; ok {
+		t.Errorf("cardToken sent alongside cardId: %v", *got)
 	}
 }
 
@@ -721,6 +741,7 @@ func TestOpenMobilePaymentSendsReferenceNumber(t *testing.T) {
 // provision instead.
 func TestThreeDCallsOmitReferenceNumber(t *testing.T) {
 	var bodies []map[string]any
+	var paths []string
 	replies := []string{
 		`{"responseHeader":{"responseCode":"0"},"threeDSessionId":"sess-1"}`,
 		`{"responseHeader":{"responseCode":"0"},"threeDOperationResult":{"threeDResult":"0"}}`,
@@ -730,6 +751,7 @@ func TestThreeDCallsOmitReferenceNumber(t *testing.T) {
 		var got map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&got)
 		bodies = append(bodies, got)
+		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(replies[min(len(bodies)-1, len(replies)-1)]))
 	}))
@@ -761,6 +783,9 @@ func TestThreeDCallsOmitReferenceNumber(t *testing.T) {
 	}
 	if bodies[2]["threeDSessionId"] != "sess-1" {
 		t.Errorf("provision session id = %v", bodies[2]["threeDSessionId"])
+	}
+	if !strings.HasSuffix(paths[2], "/provisionAll/") {
+		t.Errorf("3D payment posted to %q", paths[2])
 	}
 }
 

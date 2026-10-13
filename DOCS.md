@@ -158,6 +158,10 @@ sizin bilgilerinizle üretilmemiş demektir.
 
 ## Ödeme
 
+Paycell'in dokümanında ödeme servisi `provisionAll`. `provision` hâlâ cevap
+veriyor ama dokümanda geçmiyor; `Pay` ve `Complete3D` bu yüzden
+`provisionAll` kullanır. Aşağıdaki alanlar ikisinde de aynı.
+
 ### provision
 
 ```go
@@ -187,9 +191,9 @@ isteğinkini kopyalar.
 
 ### provisionAll
 
-Kart dışındaki yöntemler için: mobil ödeme, Paycell Kart, e-para.
-`ProvisionRequest`'in bütün alanları geçerli, üstüne `paymentMethodType`:
-`CREDIT_CARD` (varsayılan), `DCB`, `PCARD`, `EPARA`.
+Kartla ödeme de dahil bütün yöntemler için: kart, mobil ödeme, Paycell Kart,
+e-para. `ProvisionRequest`'in bütün alanları geçerli, üstüne
+`paymentMethodType`: `CREDIT_CARD` (varsayılan), `DCB`, `PCARD`, `EPARA`.
 
 ```go
 c.ProvisionAll(ctx, &paycell.ProvisionAllRequest{
