@@ -5,9 +5,10 @@
 Turkcell'in ödeme platformu [Paycell](https://paycell.com.tr) için Go
 istemcisi. Standart kütüphane dışında bağımlılığı yok.
 
-Bütün servisler yazıldı ve tamamı Paycell sandbox'ına karşı test edildi:
-1 TL'lik bir ödeme, sorgusu ve iptali, 3D oturumu, OTP, BIN sorgusu ve
-mutabakat canlı test ortamında baştan sona çalışıyor.
+Bütün servisler yazıldı ve Paycell'in test ortamına karşı denendi. Ödeme,
+sorgu, iptal ve iade, 3D'li ödeme, 3D ile kart kaydı, OTP'li kart listesi,
+kayıtlı kartla ödeme, kart silme, BIN sorgusu ve mutabakat hem ortak
+sandbox'ta hem bir üye işyeri test kanalında baştan sona çalışıyor.
 
 | Servis ailesi | Ne yapar |
 | --- | --- |
@@ -356,7 +357,9 @@ birim testleriyle kontrol edildi.
 Paycell SDK entegrasyon dokümanı, Paycell'in resmî WooCommerce, PrestaShop ve
 OpenCart eklentileri, `omnipay-paycell` ve `omnipay-paycell-sdk` PHP
 kütüphaneleri ve mevcut iki Go uygulaması okunarak yazıldı, sonra sandbox'a
-karşı düzeltildi.
+karşı düzeltildi. Ardından Paycell'in API portalındaki
+(apiportal.paycell.com.tr) dokümanla ve bir üye işyeri test kanalıyla
+karşılaştırılıp güncellendi.
 
 Sandbox'ta çalıştırılamayan iki servis `ProvisionForMarketPlace` ve
 `GetProvisionHistory`. Alan adları üçüncü parti kodlardan geliyor, kendi

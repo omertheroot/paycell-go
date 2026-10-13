@@ -5,9 +5,11 @@
 Go client for [Paycell](https://paycell.com.tr), Turkcell's payment platform.
 Standard library only.
 
-Every service is implemented and the whole thing is tested against Paycell's
-sandbox: a 1 TL payment, its inquiry and its reversal, a 3D session, OTP, BIN
-lookup and reconciliation all round-trip against the live test environment.
+Every service is implemented and tried against Paycell's test environment.
+Payments, inquiry, reversal and refund, 3D payments, storing a card after 3D,
+the OTP gated card list, paying with a stored card, deleting it, BIN lookup
+and reconciliation all round-trip on the shared sandbox and on a merchant
+test channel.
 
 | Family | What it does |
 | --- | --- |
@@ -354,7 +356,8 @@ credentials, so `InitSession` is unit-tested only.
 Built from Paycell's SDK integration documentation, Paycell's official
 WooCommerce, PrestaShop and OpenCart gateway plugins, the `omnipay-paycell` and
 `omnipay-paycell-sdk` PHP libraries, and two existing Go implementations, then
-corrected against the sandbox.
+corrected against the sandbox. Later checked against the docs on Paycell's API
+portal (apiportal.paycell.com.tr) and a merchant test channel, and updated.
 
 `ProvisionForMarketPlace` and `GetProvisionHistory` are the two services the
 sandbox could not exercise. Their field names come from third-party code, so
