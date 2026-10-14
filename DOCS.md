@@ -33,7 +33,7 @@ zorunlu.
 | `EulaID` | kart saklama ve mobil ödeme açmada varsayılan sözleşme |
 | `Environment` | `paycell.Test` ya da `paycell.Production` |
 | `ClientIPAddress` | isteğe yazılan IP, boşsa `127.0.0.1`. Paycell müşterinin IP:port'unu istiyor, `PayParams.ClientIP` istek başına verir |
-| `DefaultMSISDN` | çağrılarda numara verilmezse kullanılır |
+| `DefaultMSISDN` | çağrılarda numara verilmezse kullanılır; `905321234567`, `05321234567` ve `5321234567` aynı cüzdan |
 | `ReferencePrefix` | `NewReferenceNumber`'ın başa koyduğu haneler |
 | `SkipResponseHashCheck` | kart token yanıtının imza kontrolünü kapatır, açık bırakın |
 | `ProvisionURL`, `PaymentURL`, `CardTokenURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | adres değişikliği; yalnız `PaymentURL` verilirse `CardTokenURL` onu izler |
@@ -337,9 +337,10 @@ Dönüş (test kanalında ölçüldü):
 Paycell müşteriyi yalnızca uygulamanız için tanımlanmış adreslere geri
 gönderir. Tanımsız bir callback adresinde müşteri bankaya hiç gitmez, Paycell'in
 "3D Yönlendirme Hatası" sayfasında kalır ve oturum düşer (sonuç
-`90013 Session not found`). Sandbox'ta `localhost` port ve yol fark etmeksizin
-geçiyor, `127.0.0.1` geçmiyor. Canlı callback adresinizi Paycell'e
-tanımlatın.
+`90013 Session not found`). Eşleştirme adresin başına göre: host'u
+tanımlatmak yeterli, o host'taki her yol geçiyor. Sandbox'ta `localhost` port
+ve yol fark etmeksizin geçiyor, `127.0.0.1` geçmiyor. Canlı callback
+adresinizi Paycell'e tanımlatın.
 
 ### getThreeDSessionResult
 
@@ -386,8 +387,12 @@ for _, card := range methods.Cards() { ... }
 ```
 
 `ExtraParameters` boşsa `VALIDATION_TYPE=PM_LIST` gider, doküman bunu burada
-da istiyor. Sandbox'ta doğrulanmış bir referans beş gün sonra da listeyi
-açıyordu.
+da istiyor.
+
+Paycell her listelemeden önce yeni bir OTP istiyor ve kartları, maskeli
+hâlde bile, sizin tarafınızda tutmanıza izin vermiyor: her ödemede OTP, liste,
+ödeme. Sandbox doğrulanmış bir referansı beş gün sonra da kabul etti; bu bir
+izin değil.
 
 `GetPaymentMethods` ve `GetCards` eski listeler, dokümanda yoklar; test
 kanalında OTP istemeden cevap verdiler. `GetPaymentMethods` mobil ödeme

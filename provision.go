@@ -266,8 +266,12 @@ func (c *Client) GetPaymentMethods(ctx context.Context, req *PaymentMethodsReque
 // validated reference it answers 3110, see IsOTPRequired.
 //
 // ExtraParameters defaults to CardListOTPParams, which the docs ask for here
-// too. A validated reference outlives the OTP by a long way: the sandbox
-// still listed cards for one validated five days earlier.
+// too.
+//
+// Paycell wants a fresh OTP before every listing and does not allow keeping
+// the cards on your side, masked or not, so it goes OTP, list, pay each time.
+// The sandbox happily reuses a validated reference for days; that is not
+// permission.
 func (c *Client) GetPaymentMethodList(ctx context.Context, req *PaymentMethodListRequest) (*PaymentMethodsResponse, error) {
 	if req == nil {
 		req = new(PaymentMethodListRequest)

@@ -58,7 +58,8 @@ credentials. The sandbox 3D password is `123456`.
 ## Setup
 
 Paycell issues the credentials during onboarding and allow-lists the IP of
-every server that calls the provision, cancel and status services.
+every server that calls the provision, cancel and status services. Not in the
+test environment: Paycell asks for the addresses after UAT.
 
 ```go
 c, err := paycell.New(paycell.Config{
@@ -169,9 +170,10 @@ for _, card := range methods.Cards() {
 }
 ```
 
-A validated reference lives far longer than the OTP: the sandbox still listed
-cards for a reference validated five days earlier. Once it lapses you get
-`3110`, and that is the time for a fresh OTP.
+Paycell wants a fresh OTP before every listing and does not allow keeping the
+cards on your side, masked or not. The flow is OTP, list, pay, every time. The
+sandbox happily accepts a validated reference for days; that is not
+permission.
 
 `GetPaymentMethods` and `GetCards` are the older listings and are gone from
 Paycell's current docs. On the test channel they answered without any OTP,
@@ -337,9 +339,12 @@ Also seen on a merchant test channel:
   shared sandbox). `saveCard` stores nothing. The limit is two cards per
   subscriber (`3002`).
 - `getPaymentMethodList` opens with the `referenceNumber` the OTP went out
-  with, and a validated reference keeps working for days.
+  with. The sandbox accepts a validated reference for days, but Paycell wants
+  a fresh OTP before every listing.
 - Paycell does not return to an unregistered callback: the customer stops on
-  a "3D Yönlendirme Hatası" page and the session dies with `90013`.
+  a "3D Yönlendirme Hatası" page and the session dies with `90013`. Matching
+  is on the start of the URL; once the host is registered, any path on it
+  passes.
 - With `isPost3DResult` on, the result is `POST`ed to the callback as a form;
   with it off the way back is a `GET` with nothing added to the URL.
 - `getPrepaidCommission` and `queryOrderVpf` are in the docs but answered

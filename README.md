@@ -58,7 +58,8 @@ Sandbox 3D şifresi `123456`.
 
 Bilgileri Paycell entegrasyon sürecinde veriyor. Provizyon, iptal ve statü
 servislerini çağıracak her sunucunun IP'sinin Paycell tarafında
-tanımlanması gerekiyor.
+tanımlanması gerekiyor; test ortamında gerekmiyor, Paycell IP'leri UAT'den
+sonra istiyor.
 
 ```go
 c, err := paycell.New(paycell.Config{
@@ -169,9 +170,10 @@ for _, card := range methods.Cards() {
 }
 ```
 
-Doğrulanmış referans OTP'nin kendisinden çok daha uzun yaşıyor: sandbox beş
-gün önce doğrulanmış bir referansla listeyi hâlâ veriyordu. Referans
-düştüğünde `3110` gelir, o zaman yeni bir OTP isteyin.
+Paycell her listelemeden önce yeni bir OTP istiyor ve kartları sizin
+tarafınızda, maskeli hâlde bile, tutmanıza izin vermiyor. Akış her ödemede
+OTP, liste, ödeme. Sandbox doğrulanmış bir referansı günlerce kabul ediyor,
+bunu izin saymayın.
 
 `GetPaymentMethods` ve `GetCards` eski listeler, Paycell'in güncel
 dokümanında yoklar. Test kanalında OTP istemeden cevap verdiler, ama kart
@@ -337,10 +339,12 @@ Bir üye işyeri test kanalında ayrıca görülenler:
 - Kart yalnızca 3D'den geçmiş bir oturumla saklanıyor (`3427`, ortak
   sandbox'ta `4003`). `saveCard` hiçbir şey saklamıyor. Abone başına sınır
   iki kart (`3002`).
-- `getPaymentMethodList` OTP'nin gönderildiği `referenceNumber` ile açılıyor,
-  doğrulanmış referans günlerce geçerli kalıyor.
+- `getPaymentMethodList` OTP'nin gönderildiği `referenceNumber` ile açılıyor.
+  Sandbox doğrulanmış referansı günlerce kabul ediyor, ama Paycell her
+  listelemeden önce yeni OTP istiyor.
 - Paycell tanımsız bir callback adresine dönmüyor: müşteri "3D Yönlendirme
-  Hatası" sayfasında kalıyor, oturum `90013` ile düşüyor.
+  Hatası" sayfasında kalıyor, oturum `90013` ile düşüyor. Eşleştirme adresin
+  başına göre; host tanımlanınca o host'taki her yol geçiyor.
 - `isPost3DResult` açıkken sonuç callback'e form olarak `POST` ediliyor,
   kapalıyken dönüş `GET` ve adrese hiçbir şey eklenmiyor.
 - `getPrepaidCommission` ve `queryOrderVpf` dokümanda var ama iki sandbox'ta

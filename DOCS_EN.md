@@ -33,7 +33,7 @@ are required.
 | `EulaID` | default terms id for storing a card and opening mobile payment |
 | `Environment` | `paycell.Test` or `paycell.Production` |
 | `ClientIPAddress` | reported as the origin, `127.0.0.1` when empty. Paycell wants the customer's IP:port; `PayParams.ClientIP` sets it per payment |
-| `DefaultMSISDN` | used by calls that do not carry a subscriber number |
+| `DefaultMSISDN` | used by calls that do not carry a subscriber number; `905321234567`, `05321234567` and `5321234567` reach the same wallet |
 | `ReferencePrefix` | the digits `NewReferenceNumber` puts in front |
 | `SkipResponseHashCheck` | turns off card token signature checking, leave it off |
 | `ProvisionURL`, `PaymentURL`, `CardTokenURL`, `CancelURL`, `SDKInitURL`, `SDKHomeURL` | endpoint overrides; `CardTokenURL` follows `PaymentURL` when only that is set |
@@ -339,9 +339,10 @@ The way back (measured on the test channel):
 Paycell only sends customers back to addresses registered for your
 application. With an unregistered callback the customer never reaches the
 bank: they stop on Paycell's "3D Yönlendirme Hatası" page and the session is
-lost (the result reads `90013 Session not found`). In the sandbox `localhost`
-passes whatever the port and path, `127.0.0.1` does not. Have Paycell register
-your production callback.
+lost (the result reads `90013 Session not found`). Matching is on the start of
+the URL: registering the host is enough, any path on it passes. In the sandbox
+`localhost` passes whatever the port and path, `127.0.0.1` does not. Have
+Paycell register your production callback.
 
 ### getThreeDSessionResult
 
@@ -388,8 +389,12 @@ for _, card := range methods.Cards() { ... }
 ```
 
 `ExtraParameters` defaults to `VALIDATION_TYPE=PM_LIST`, which the docs ask
-for here as well. In the sandbox a validated reference still opened the list
-five days later.
+for here as well.
+
+Paycell wants a fresh OTP before every listing and does not allow keeping the
+cards on your side, masked or not: OTP, list, pay, every time. The sandbox
+still accepted a validated reference five days later; that is not
+permission.
 
 `GetPaymentMethods` and `GetCards` are the older listings and are not in the
 docs; on the test channel they answered without an OTP. `GetPaymentMethods`

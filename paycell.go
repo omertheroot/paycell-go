@@ -188,8 +188,8 @@ type Config struct {
 	ClientIPAddress string
 
 	// DefaultMSISDN fills in for calls that don't carry one. Card-only
-	// merchants get assigned a fixed number for this. Country code first:
-	// 905380521479.
+	// merchants get assigned a fixed number for this. Paycell takes any of
+	// 905380521479, 05380521479 and 5380521479, all the same wallet.
 	DefaultMSISDN string
 
 	// ReferencePrefix is the prefix Paycell assigned you for the first
