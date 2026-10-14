@@ -192,6 +192,10 @@ func (p PayParams) provision() *ProvisionRequest {
 
 // Pay tokenises if it has to, then charges. The non-3D flow, in one call.
 //
+// Live merchants only get non-3D payments for subscriptions, and only once
+// Paycell's security team has signed off. Everything else goes through
+// Start3D and Complete3D. The sandbox takes either.
+//
 // It goes through provisionAll, the payment service Paycell documents.
 // provision still answers, but it is not in their docs any more.
 func (c *Client) Pay(ctx context.Context, p PayParams) (*ProvisionResponse, error) {

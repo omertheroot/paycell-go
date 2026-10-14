@@ -303,7 +303,9 @@ func TestSandboxStoredCard(t *testing.T) {
 	checkDecode(t, "registerCard", err)
 	switch {
 	case HasCode(err, "3002"):
-		t.Skipf("the subscriber is at the card limit: %v", err)
+		// Paycell says there is no card limit and puts this down to the bank
+		// test cards.
+		t.Skipf("registerCard refused with 3002: %v", err)
 	case HasCode(err, CodeCardAlreadyRegistered):
 		t.Logf("already stored as %s, leaving it there", reg.CardID)
 	case err != nil:

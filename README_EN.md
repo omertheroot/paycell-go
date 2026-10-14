@@ -93,6 +93,10 @@ res, err := c.Pay(ctx, paycell.PayParams{
 `Pay` tokenises the card and provisions in one go. Store the reference number
 with the order. Every later `Inquire`, `Reverse` and `Refund` needs it.
 
+`Pay` is the non-3D flow. Live, Paycell wants 3D on payments; non-3D is only
+opened for things like subscriptions, with their security team's approval.
+The sandbox takes either. For live payments see [3D Secure](#3d-secure).
+
 Pre-authorisation is the same call with a different payment type: `c.PreAuth`,
 then `c.PostAuth` with the pre-auth's reference in
 `OriginalReferenceNumber`.
@@ -336,8 +340,9 @@ live requests:
 Also seen on a merchant test channel:
 
 - A card is only stored with a session that passed 3D (`3427`, `4003` on the
-  shared sandbox). `saveCard` stores nothing. The limit is two cards per
-  subscriber (`3002`).
+  shared sandbox). `saveCard` stores nothing. With two cards on a number a
+  third got `3002`; Paycell says there is no limit and puts it down to the
+  bank test cards.
 - `getPaymentMethodList` opens with the `referenceNumber` the OTP went out
   with. The sandbox accepts a validated reference for days, but Paycell wants
   a fresh OTP before every listing.
@@ -347,8 +352,10 @@ Also seen on a merchant test channel:
   passes.
 - With `isPost3DResult` on, the result is `POST`ed to the callback as a form;
   with it off the way back is a `GET` with nothing added to the URL.
-- `getPrepaidCommission` and `queryOrderVpf` are in the docs but answered
-  `1002` on both sandboxes, so the package does not model them yet.
+- `getPrepaidCommission` is not open to merchants: Paycell expects you to
+  keep your commission rate and instalment counts in your own software.
+  `queryOrderVpf` only answers once a payment has settled, from the next day
+  on; the same day it gives `1002`. The package models neither yet.
 
 PREAUTH and POSTAUTH answer `4015` and `1024` on the shared sandbox merchant
 while SALE with the same card and fields succeeds, which points at merchant

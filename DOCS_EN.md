@@ -290,6 +290,10 @@ applied.
 
 ## 3D Secure
 
+Live, Paycell wants 3D on payments. Non-3D (`Pay`, or a `ProvisionAll` with no
+`ThreeDSessionID`) is only opened for things like subscriptions, with their
+security team's approval; the sandbox takes both.
+
 Three steps. The card becomes a token, the token opens a session, and the
 customer's browser POSTs to the bank with that session. On the way back you
 query the result and, if it passed, take the payment with a separate
@@ -433,8 +437,10 @@ Two ways in, both tried on the test channel:
 
 The response carries `cardId`. Later payments use that instead of card data.
 A card already in the wallet comes back as `3005`
-(`CodeCardAlreadyRegistered`) with `cardId` still filled in. A subscriber at
-the card limit gets `3002`; on the test channel the limit was two cards.
+(`CodeCardAlreadyRegistered`) with `cardId` still filled in. On the test
+channel a third card on a number got `3002` ("Max number of card for MSISDN is
+exceeded"); Paycell says there is no limit and puts it down to the bank test
+cards.
 
 There is no `saveCard` field on `ThreeDSessionRequest`. It is not in the docs,
 and sending it stored nothing.
@@ -443,6 +449,11 @@ and sending it stored nothing.
 
 `UpdateCard` renames a card or makes it the default; `cardId` is required.
 `DeleteCard` needs only `cardId`.
+
+Cards live in the customer's Paycell wallet, tied to the number and shared. A
+card saved with another merchant or in the Paycell app shows up in your list
+too, and `DeleteCard` removes it from the number, which is the customer's
+whole Paycell wallet. Tell the customer before deleting.
 
 ## Mobile payment and OTP
 
@@ -603,7 +614,7 @@ Seen directly in the sandbox:
 | `2032` | invalid parameter | do not send `referenceNumber` to the 3D session |
 | `2041` | provision entity not found | do not send `referenceNumber` to the 3D result |
 | `3110` | OTP not validated | `SendOTP` + `ValidateOTP`, then `GetPaymentMethodList` with the same `ReferenceNumber` |
-| `3002` | subscriber at the card limit | delete a card first; two on the test channel |
+| `3002` | card could not be added to the number | Paycell says there is no limit; seen with the bank test cards |
 | `3005` | card already registered | use the `cardId` in the response |
 | `3112` | wrong OTP | check `remainingRetryCount` |
 | `3032` | 3D authentication not successful | provisioned before the session passed 3D |

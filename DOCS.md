@@ -289,6 +289,10 @@ for _, p := range inq.ProvisionList {
 
 ## 3D Secure
 
+Paycell canlıda ödemelerde 3D istiyor. 3D'siz ödeme (`Pay` ya da
+`ThreeDSessionID`'siz bir `ProvisionAll`) yalnız abonelik gibi işlerde, Paycell
+güvenlik ekibinin onayıyla açılıyor; sandbox ikisini de kabul ediyor.
+
 Üç adım. Kart token'a çevrilir, token ile oturum açılır, müşterinin tarayıcısı
 o oturumla bankaya POST eder. Dönüşte sonuç sorgulanır ve geçildiyse ödeme
 ayrı bir provizyonla alınır.
@@ -431,8 +435,9 @@ c.RegisterCard(ctx, &paycell.RegisterCardRequest{
 
 Yanıtta `cardId` döner. Bir sonraki ödemede kart verisi yerine bu id yeter.
 Kart zaten cüzdandaysa `3005` (`CodeCardAlreadyRegistered`) döner, yanıtta
-`cardId` yine dolu gelir. Abone kart sınırındaysa `3002`; test kanalında sınır
-iki karttı.
+`cardId` yine dolu gelir. Testte bir numarada iki kart varken üçüncüsü `3002`
+("Max number of card for MSISDN is exceeded") aldı; Paycell sayı sınırı
+olmadığını, bunun banka test kartlarından kaynaklandığını söylüyor.
 
 `ThreeDSessionRequest`'te `saveCard` diye bir alan yok. Dokümanda geçmiyor,
 gönderildiğinde de hiçbir kart saklanmadı.
@@ -441,6 +446,11 @@ gönderildiğinde de hiçbir kart saklanmadı.
 
 `UpdateCard` takma adı değiştirir ya da kartı varsayılan yapar; `cardId`
 zorunlu. `DeleteCard` yalnızca `cardId` ister.
+
+Kartlar müşterinin Paycell Cüzdanı'nda, numaraya bağlı ve ortak tutuluyor.
+Başka bir işyerinde ya da Paycell uygulamasında kaydedilmiş kart sizin
+listenizde de görünür; `DeleteCard` kartı numaradan, yani müşterinin bütün
+Paycell cüzdanından siler. Silmeden önce müşteriye bunu söyleyin.
 
 ## Mobil ödeme ve OTP
 
@@ -601,7 +611,7 @@ Sandbox'ta doğrudan görülenler:
 | `2032` | geçersiz parametre | 3D oturumuna `referenceNumber` göndermeyin |
 | `2041` | provizyon kaydı bulunamadı | 3D sonucuna `referenceNumber` göndermeyin |
 | `3110` | OTP doğrulanamadı | `SendOTP` + `ValidateOTP`, sonra aynı `ReferenceNumber` ile `GetPaymentMethodList` |
-| `3002` | abone kart sınırında | önce bir kart silin; test kanalında sınır iki kart |
+| `3002` | numaraya kart eklenemedi | Paycell'e göre sayı sınırı yok; testte banka test kartlarıyla görüldü |
 | `3005` | kart zaten kayıtlı | yanıttaki `cardId`'yi kullanın |
 | `3112` | OTP hatalı | `remainingRetryCount` alanına bakın |
 | `3032` | 3D doğrulaması başarısız | oturum 3D'den geçmeden provizyon istenmiş |

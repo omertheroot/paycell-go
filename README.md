@@ -93,6 +93,10 @@ res, err := c.Pay(ctx, paycell.PayParams{
 siparişle birlikte saklayın. Sonraki her `Inquire`, `Reverse` ve `Refund`
 çağrısı bu numarayı ister.
 
+`Pay` 3D'siz akış. Paycell canlıda ödemelerde 3D istiyor; 3D'siz ödeme yalnız
+abonelik gibi işlerde, Paycell güvenlik ekibinin onayıyla açılıyor. Sandbox
+ikisini de kabul ediyor. Canlıda ödeme için [3D Secure](#3d-secure).
+
 Ön otorizasyon aynı çağrının farklı ödeme tipiyle yapılan hâli: önce
 `c.PreAuth`, sonra ön otorizasyonun referansını `OriginalReferenceNumber`
 alanına koyarak `c.PostAuth`.
@@ -337,8 +341,9 @@ eleyerek bulundu:
 Bir üye işyeri test kanalında ayrıca görülenler:
 
 - Kart yalnızca 3D'den geçmiş bir oturumla saklanıyor (`3427`, ortak
-  sandbox'ta `4003`). `saveCard` hiçbir şey saklamıyor. Abone başına sınır
-  iki kart (`3002`).
+  sandbox'ta `4003`). `saveCard` hiçbir şey saklamıyor. Bir numarada iki kart
+  varken üçüncüsü `3002` aldı; Paycell sayı sınırı olmadığını, bunun banka
+  test kartlarından kaynaklandığını söylüyor.
 - `getPaymentMethodList` OTP'nin gönderildiği `referenceNumber` ile açılıyor.
   Sandbox doğrulanmış referansı günlerce kabul ediyor, ama Paycell her
   listelemeden önce yeni OTP istiyor.
@@ -347,8 +352,11 @@ Bir üye işyeri test kanalında ayrıca görülenler:
   başına göre; host tanımlanınca o host'taki her yol geçiyor.
 - `isPost3DResult` açıkken sonuç callback'e form olarak `POST` ediliyor,
   kapalıyken dönüş `GET` ve adrese hiçbir şey eklenmiyor.
-- `getPrepaidCommission` ve `queryOrderVpf` dokümanda var ama iki sandbox'ta
-  da `1002` döndü; paket bu yüzden henüz ikisini modellemiyor.
+- `getPrepaidCommission` üye işyerine açık değil: Paycell komisyon oranını
+  ve taksit sayısını üye işyerinin kendi yazılımında tutmasını bekliyor.
+  `queryOrderVpf` ancak ödeme finansallaştıktan sonra, ertesi günden
+  itibaren cevap veriyor; aynı gün `1002` döner. Paket ikisini de henüz
+  modellemiyor.
 
 PREAUTH ve POSTAUTH ortak sandbox üye işyerinde `4015` ve `1024` dönüyor, oysa
 aynı kart ve alanlarla SALE çalışıyor. Bu, istek yapısından çok üye işyeri
