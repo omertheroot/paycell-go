@@ -180,10 +180,11 @@ OTP, liste, ödeme. Sandbox doğrulanmış bir referansı günlerce kabul ediyor
 bunu izin saymayın.
 
 `GetPaymentMethods` ve `GetCards` eski listeler, Paycell'in güncel
-dokümanında yoklar. Test kanalında OTP istemeden cevap verdiler, ama kart
-listesi için `GetPaymentMethodList` kullanın: Paycell'in kabul testleri onu
-soruyor. Mobil ödeme limiti `GetPaymentMethods`'ta. Saklı kartları
-`UpdateCard` ve `DeleteCard` ile yönetirsiniz.
+dokümanında yoklar. Test kanalında OTP istemeden cevap veriyorlar, bu da izin
+değil: Paycell `getCards`'ı kapatıyor ve canlıda kartları OTP'siz listelemeye
+izin vermiyor. Kart listesi için `GetPaymentMethodList` kullanın. Mobil ödeme
+limiti `GetPaymentMethods`'ta. Saklı kartları `UpdateCard` ve `DeleteCard`
+ile yönetirsiniz.
 
 ## Hatalar
 

@@ -401,9 +401,11 @@ still accepted a validated reference five days later; that is not
 permission.
 
 `GetPaymentMethods` and `GetCards` are the older listings and are not in the
-docs; on the test channel they answered without an OTP. `GetPaymentMethods`
-also reports the mobile payment standing, and `OTPToken` is for these two.
-`Cards()` reads the list from `cardList` or `paymentMethods`, whichever came
+docs. They answer without an OTP on the test channel, but production does not
+allow listing cards without one, and Paycell is shutting `getCards` down.
+`GetPaymentMethods` also reports the mobile payment standing, and `OTPToken`
+is for these two. `Cards()` reads the list from `cardList` or
+`paymentMethods`, whichever came
 back.
 
 `StoredCard`: `cardId`, `cardBrand`, `cardType`, `maskedCardNo`, `alias`,

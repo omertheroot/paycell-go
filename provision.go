@@ -191,7 +191,8 @@ func (c *Client) GetThreeDSessionResult(ctx context.Context, req *ThreeDSessionR
 // GetCards lists the subscriber's stored cards. Usually OTP gated, see
 // IsOTPRequired.
 //
-// Deprecated: Paycell's docs list cards with GetPaymentMethodList.
+// Deprecated: Paycell is shutting getCards down and does not allow it in
+// production. List cards with GetPaymentMethodList after an OTP.
 func (c *Client) GetCards(ctx context.Context, req *GetCardsRequest) (*GetCardsResponse, error) {
 	if req == nil {
 		req = new(GetCardsRequest)

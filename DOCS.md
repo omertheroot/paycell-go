@@ -398,10 +398,12 @@ hâlde bile, sizin tarafınızda tutmanıza izin vermiyor: her ödemede OTP, lis
 ödeme. Sandbox doğrulanmış bir referansı beş gün sonra da kabul etti; bu bir
 izin değil.
 
-`GetPaymentMethods` ve `GetCards` eski listeler, dokümanda yoklar; test
-kanalında OTP istemeden cevap verdiler. `GetPaymentMethods` mobil ödeme
-durumunu da döner, `OTPToken` alanı bu ikisi için. `Cards()` kart listesini
-`cardList`'ten ya da `paymentMethods`'tan, hangisi doluysa oradan alır.
+`GetPaymentMethods` ve `GetCards` eski listeler, dokümanda yoklar. Test
+kanalında OTP istemeden cevap veriyorlar ama canlıda kartlar OTP'siz
+listelenemez ve Paycell `getCards`'ı kapatıyor. `GetPaymentMethods` mobil
+ödeme durumunu da döner, `OTPToken` alanı bu ikisi için. `Cards()` kart
+listesini `cardList`'ten ya da `paymentMethods`'tan, hangisi doluysa oradan
+alır.
 
 `StoredCard`: `cardId`, `cardBrand`, `cardType`, `maskedCardNo`, `alias`,
 `activationDate`, `isDefault`, `isExpired`, `showEulaId`, `isThreeDValidated`,

@@ -180,9 +180,10 @@ sandbox happily accepts a validated reference for days; that is not
 permission.
 
 `GetPaymentMethods` and `GetCards` are the older listings and are gone from
-Paycell's current docs. On the test channel they answered without any OTP,
-but use `GetPaymentMethodList` for the card list: it is the one Paycell's
-acceptance tests ask about. The mobile payment limit is in
+Paycell's current docs. They answer without an OTP on the test channel; that
+is not permission either. Paycell is shutting `getCards` down and does not
+allow listing cards without an OTP in production. Use
+`GetPaymentMethodList` for the card list. The mobile payment limit is in
 `GetPaymentMethods`. Manage the stored set with `UpdateCard` and
 `DeleteCard`.
 
